@@ -1,7 +1,7 @@
 #pragma once
 
 #define MINIAUDIO_IMPLEMENTATION
-#include <miniaudio.h>
+#include "miniaudio.h"
 
 #include <algorithm>
 #include <thread>
