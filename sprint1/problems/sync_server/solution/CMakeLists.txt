@@ -1,16 +1,11 @@
 cmake_minimum_required(VERSION 3.14)
 
-# Принудительно задаём C и C++ компилятор
-if(NOT CMAKE_C_COMPILER)
-    set(CMAKE_C_COMPILER /usr/bin/g++ CACHE PATH "C compiler" FORCE)
-    set(CMAKE_C_COMPILER_WORKS 1 CACHE INTERNAL "" FORCE)
-endif()
-if(NOT CMAKE_CXX_COMPILER)
-    set(CMAKE_CXX_COMPILER /usr/bin/g++ CACHE PATH "C++ compiler" FORCE)
-    set(CMAKE_CXX_COMPILER_WORKS 1 CACHE INTERNAL "" FORCE)
-endif()
+# Отключаем проверку C компилятора
+set(CMAKE_C_COMPILER_WORKS 1)
+set(CMAKE_C_COMPILER /usr/bin/g++)
 
-project(hello CXX)
+# Явно указываем, что проект только на C++
+project(hello LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
