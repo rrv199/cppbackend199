@@ -1,14 +1,19 @@
 #include "sdk.h"
 //
 #include <boost/asio/io_context.hpp>
+#include <boost/asio/signal_set.hpp>
 #include <iostream>
 #include <thread>
+#include <vector>
 
 #include "json_loader.h"
 #include "request_handler.h"
+#include "http_server.h"
 
 using namespace std::literals;
 namespace net = boost::asio;
+namespace sys = boost::system;
+using tcp = net::ip::tcp;
 
 namespace {
 
@@ -18,7 +23,6 @@ void RunWorkers(unsigned n, const Fn& fn) {
     n = std::max(1u, n);
     std::vector<std::jthread> workers;
     workers.reserve(n - 1);
-    // Запускаем n-1 рабочих потоков, выполняющих функцию fn
     while (--n) {
         workers.emplace_back(fn);
     }
@@ -41,16 +45,24 @@ int main(int argc, const char* argv[]) {
         net::io_context ioc(num_threads);
 
         // 3. Добавляем асинхронный обработчик сигналов SIGINT и SIGTERM
+        net::signal_set signals(ioc, SIGINT, SIGTERM);
+        signals.async_wait([&ioc](const sys::error_code& ec, [[maybe_unused]] int signal_number) {
+            if (!ec) {
+                ioc.stop();
+            }
+        });
 
         // 4. Создаём обработчик HTTP-запросов и связываем его с моделью игры
-        http_handler::RequestHandler handler{game};
+        auto handler = std::make_shared<http_handler::RequestHandler>(game);
 
         // 5. Запустить обработчик HTTP-запросов, делегируя их обработчику запросов
-        /*
-        http_server::ServeHttp(ioc, {address, port}, [&handler](auto&& req, auto&& send) {
-            handler(std::forward<decltype(req)>(req), std::forward<decltype(send)>(send));
+        const auto address = net::ip::make_address("0.0.0.0");
+        const unsigned short port = 8080;
+        tcp::endpoint endpoint(address, port);
+        
+        http_server::ServeHttp(ioc, endpoint, [handler](auto&& req, auto&& send) {
+            (*handler)(std::forward<decltype(req)>(req), std::forward<decltype(send)>(send));
         });
-        */
 
         // Эта надпись сообщает тестам о том, что сервер запущен и готов обрабатывать запросы
         std::cout << "Server has started..."sv << std::endl;
