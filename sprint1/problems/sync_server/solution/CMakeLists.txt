@@ -1,19 +1,28 @@
-cmake_minimum_required(VERSION 3.14)
+cmake_minimum_required(VERSION 3.11)
 
-# Явно указываем компилятор
-set(CMAKE_C_COMPILER /usr/bin/g++)
-set(CMAKE_CXX_COMPILER /usr/bin/g++)
-
+# Проект называется hello и написан на C++
 project(hello CXX)
 
-set(CMAKE_CXX_STANDARD 17)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
+# Исходный код будет компилироваться с поддержкой стандарта C++20
+set(CMAKE_CXX_STANDARD 20)
 
-add_compile_definitions(BOOST_BEAST_USE_STD_STRING_VIEW)
+# Подключаем сгенерированный скрипт conanbuildinfo.cmake, созданный Conan
+include(${CMAKE_BINARY_DIR}/conanbuildinfo.cmake)
+# Выполняем макрос из conanbuildinfo.cmake, который настроит CMake на работу с библиотеками, установленными Conan
+conan_basic_setup()
 
-# Conan будет предоставлять Boost
-find_package(Boost REQUIRED COMPONENTS system)
+find_package(Boost REQUIRED)
+if(Boost_FOUND)
+    # boost найден, добавляем к каталогам заголовочных файлов проекта путь к заголовочным файлам boost
+    include_directories(${Boost_INCLUDE_DIRS})
+endif()
 
+# Платформы вроде linux требуют подключения библиотеки pthread для поддержки стандартных потоков.
+# Следующие две строки подключат эту библиотеку на таких платформах
+set(THREADS_PREFER_PTHREAD_FLAG ON)
+find_package(Threads REQUIRED)
+
+# Проект содержит единственный исходный файл main.cpp
 add_executable(hello main.cpp)
-
-target_link_libraries(hello Boost::system pthread)
+# Просим компоновщик подключить библиотеку для поддержки потоков
+target_link_libraries(hello PRIVATE Threads::Threads)
