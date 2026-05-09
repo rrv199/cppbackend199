@@ -1,8 +1,8 @@
 cmake_minimum_required(VERSION 3.14)
 
-# Отключаем проверку C компилятора
-set(CMAKE_C_COMPILER_WORKS 1)
-set(CMAKE_CXX_COMPILER_WORKS 1)
+# Явно указываем компилятор C++ (как C тоже)
+set(CMAKE_C_COMPILER /usr/bin/g++)
+set(CMAKE_CXX_COMPILER /usr/bin/g++)
 
 project(hello CXX)
 
