@@ -1,18 +1,17 @@
-cmake_minimum_required(VERSION 3.11)
+cmake_minimum_required(VERSION 3.14)
+project(hello_async)
 
-project(HelloAsync CXX)
-set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-include(${CMAKE_BINARY_DIR}/conanbuildinfo.cmake)
-conan_basic_setup()
+add_compile_definitions(BOOST_BEAST_USE_STD_STRING_VIEW)
 
-find_package(Boost 1.78.0 REQUIRED)
-if(Boost_FOUND)
-  include_directories(${Boost_INCLUDE_DIRS})
-endif()
+find_package(Boost REQUIRED COMPONENTS system)
 
-set(THREADS_PREFER_PTHREAD_FLAG ON)
-find_package(Threads REQUIRED)
+add_executable(hello_async
+    src/http_server.cpp
+    src/main.cpp
+)
 
-add_executable(hello_async src/main.cpp src/http_server.cpp src/http_server.h src/sdk.h)
-target_link_libraries(hello_async PRIVATE Threads::Threads)
+target_include_directories(hello_async PRIVATE src)
+target_link_libraries(hello_async Boost::system pthread)

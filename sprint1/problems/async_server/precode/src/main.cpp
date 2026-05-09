@@ -22,7 +22,6 @@ using StringResponse = http::response<http::string_body>;
 struct ContentType {
     ContentType() = delete;
     constexpr static std::string_view TEXT_HTML = "text/html"sv;
-    // При необходимости внутрь ContentType можно добавить и другие типы контента
 };
 
 // Создаёт StringResponse с заданными параметрами
@@ -38,21 +37,47 @@ StringResponse MakeStringResponse(http::status status, std::string_view body, un
 }
 
 StringResponse HandleRequest(StringRequest&& req) {
-    // Подставьте сюда код из синхронной версии HTTP-сервера
-    return MakeStringResponse(http::status::ok, "OK"sv, req.version(), req.keep_alive());
+    std::string target(req.target());
+
+    // Удаляем ведущий слэш
+    if (!target.empty() && target[0] == '/') {
+        target = target.substr(1);
+    }
+
+    // Проверяем метод запроса
+    if (req.method() == http::verb::get) {
+        std::string body = "Hello, " + target;
+        return MakeStringResponse(http::status::ok, body, req.version(), req.keep_alive());
+    } else if (req.method() == http::verb::head) {
+        std::string body = "Hello, " + target;
+        StringResponse response = MakeStringResponse(http::status::ok, "", req.version(), req.keep_alive());
+        response.content_length(body.size());
+        return response;
+    } else {
+        StringResponse response = MakeStringResponse(
+            http::status::method_not_allowed,
+            "Invalid method",
+            req.version(),
+            req.keep_alive()
+        );
+        response.set(http::field::allow, "GET, HEAD");
+        return response;
+    }
 }
 
 // Запускает функцию fn на n потоках, включая текущий
 template <typename Fn>
 void RunWorkers(unsigned n, const Fn& fn) {
     n = std::max(1u, n);
-    std::vector<std::jthread> workers;
+    std::vector<std::thread> workers;
     workers.reserve(n - 1);
-    // Запускаем n-1 рабочих потоков, выполняющих функцию fn
     while (--n) {
         workers.emplace_back(fn);
     }
     fn();
+    for (auto& t : workers) {
+        t.join();
+    }
 }
 
 }  // namespace
@@ -66,14 +91,19 @@ int main() {
     net::signal_set signals(ioc, SIGINT, SIGTERM);
     signals.async_wait([&ioc](const sys::error_code& ec, [[maybe_unused]] int signal_number) {
         if (!ec) {
+            std::cout << "Signal received, shutting down..."sv << std::endl;
             ioc.stop();
         }
     });
 
     const auto address = net::ip::make_address("0.0.0.0");
-    constexpr net::ip::port_type port = 8080;
-    http_server::ServeHttp(ioc, {address, port}, [](auto&& req, auto&& sender) {
-        // sender(HandleRequest(std::forward<decltype(req)>(req)));
+    const unsigned short port = 8080;
+    
+    // Создаём endpoint используя полный тип
+    net::ip::tcp::endpoint endpoint(address, port);
+    
+    http_server::ServeHttp(ioc, endpoint, [](auto&& req, auto&& sender) {
+        sender(HandleRequest(std::forward<decltype(req)>(req)));
     });
 
     // Эта надпись сообщает тестам о том, что сервер запущен и готов обрабатывать запросы
@@ -82,4 +112,6 @@ int main() {
     RunWorkers(num_threads, [&ioc] {
         ioc.run();
     });
+
+    std::cout << "Server stopped."sv << std::endl;
 }
