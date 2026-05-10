@@ -20,20 +20,20 @@ if(EXISTS ${CMAKE_BINARY_DIR}/conanbuildinfo.cmake)
     conan_basic_setup()
 endif()
 
-find_package(Boost REQUIRED)
+find_package(Boost REQUIRED COMPONENTS system)
 
+# Добавляем пути к заголовкам Boost
 if(DEFINED Boost_INCLUDE_DIRS)
     include_directories(${Boost_INCLUDE_DIRS})
 endif()
 
-# Список исходных файлов
-set(SOURCES
+# Добавляем все исходные файлы
+add_executable(game_server
     src/main.cpp
     src/http_server.cpp
     src/json_loader.cpp
     src/request_handler.cpp
+    src/boost_json.cpp
 )
 
-add_executable(game_server ${SOURCES})
-
-target_link_libraries(game_server ${Boost_LIBRARIES} pthread)
+target_link_libraries(game_server Boost::system pthread)
