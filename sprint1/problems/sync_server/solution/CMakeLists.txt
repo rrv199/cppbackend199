@@ -1,24 +1,14 @@
-cmake_minimum_required(VERSION 3.11)
+cmake_minimum_required(VERSION 3.14)
 
 project(hello CXX)
 
-set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-# Подключаем настройки Conan (если они есть)
-if(EXISTS ${CMAKE_BINARY_DIR}/conanbuildinfo.cmake)
-    include(${CMAKE_BINARY_DIR}/conanbuildinfo.cmake)
-    conan_basic_setup()
-endif()
+add_compile_definitions(BOOST_BEAST_USE_STD_STRING_VIEW)
 
-find_package(Boost REQUIRED)
-if(Boost_FOUND)
-    include_directories(${Boost_INCLUDE_DIRS})
-    link_directories(${Boost_LIBRARY_DIRS})
-endif()
+find_package(Boost REQUIRED COMPONENTS system)
 
-set(THREADS_PREFER_PTHREAD_FLAG ON)
-find_package(Threads REQUIRED)
+add_executable(hello src/main.cpp)
 
-add_executable(hello main.cpp)
-
-target_link_libraries(hello PRIVATE Threads::Threads ${Boost_LIBRARIES})
+target_link_libraries(hello Boost::system pthread)
