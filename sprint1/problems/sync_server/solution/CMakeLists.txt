@@ -12,6 +12,7 @@ include(${CMAKE_BINARY_DIR}/conanbuildinfo.cmake)
 conan_basic_setup()
 
 find_package(Boost REQUIRED)
+find_package(Threads REQUIRED)  # Добавляем поиск pthread
 
 # Добавляем пути к заголовкам Boost
 include_directories(${Boost_INCLUDE_DIRS})
