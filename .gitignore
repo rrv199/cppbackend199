@@ -730,3 +730,13 @@ sprint3/problems/flamegraph/solution/graph.svg
 *.xml
 
 **/.DS_Store
+
+# Conan generated
+CMakePresets.json
+CMakeUserPresets.json
+profile.txt
+conan_toolchain.cmake
+conanbuildinfo.txt
+build/
+*.pyc
+__pycache__/
