@@ -25,4 +25,5 @@ endif()
 
 add_executable(hello src/main.cpp)
 
-target_link_libraries(hello Boost::system pthread)
+# Используем ${Boost_LIBRARIES} вместо IMPORTED targets
+target_link_libraries(hello ${Boost_LIBRARIES} pthread)
