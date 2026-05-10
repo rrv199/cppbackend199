@@ -24,6 +24,10 @@ if(DEFINED Boost_INCLUDE_DIRS)
     include_directories(${Boost_INCLUDE_DIRS})
 endif()
 
-add_executable(hello_async src/main.cpp)
+# Добавляем все исходные файлы
+add_executable(hello_async
+    src/main.cpp
+    src/http_server.cpp
+)
 
 target_link_libraries(hello_async Boost::system pthread)
