@@ -8,14 +8,13 @@ RUN apt update && \
     && \
     pip3 install conan==1.*
 
-COPY conanfile.txt /app/
-RUN mkdir /app/build && cd /app/build && \
-    conan install .. --build=missing
-
+# Копируем исходники map_json
 COPY ./src /app/src
 COPY CMakeLists.txt /app/
+COPY conanfile.txt /app/
 
-RUN cd /app/build && \
+RUN mkdir /app/build && cd /app/build && \
+    conan install .. --build=missing && \
     cmake -DCMAKE_BUILD_TYPE=Release .. && \
     cmake --build .
 
@@ -27,8 +26,8 @@ RUN groupadd -r www && useradd -r -g www www
 USER www
 
 # Копирование бинарника и данных из сборочного контейнера
-COPY --from=build /app/build/bin/hello /app/
+COPY --from=build /app/build/bin/game_server /app/
 COPY ./data /app/data
 
 # Точка входа
-ENTRYPOINT ["/app/hello", "/app/data/config.json"]
+ENTRYPOINT ["/app/game_server", "/app/data/config.json"]
