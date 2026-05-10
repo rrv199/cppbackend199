@@ -4,7 +4,7 @@ cmake_minimum_required(VERSION 3.14)
 set(CMAKE_C_COMPILER_WORKS 1)
 set(CMAKE_CXX_COMPILER_WORKS 1)
 
-project(hello CXX)
+project(game_server CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -23,7 +23,14 @@ if(DEFINED Boost_INCLUDE_DIRS)
     include_directories(${Boost_INCLUDE_DIRS})
 endif()
 
-add_executable(hello src/main.cpp)
+# Список исходных файлов
+set(SOURCES
+    src/main.cpp
+    src/http_server.cpp
+    src/json_loader.cpp
+    src/request_handler.cpp
+)
 
-# Используем ${Boost_LIBRARIES} вместо IMPORTED targets
-target_link_libraries(hello ${Boost_LIBRARIES} pthread)
+add_executable(game_server ${SOURCES})
+
+target_link_libraries(game_server ${Boost_LIBRARIES} pthread)
