@@ -4,7 +4,7 @@ cmake_minimum_required(VERSION 3.14)
 set(CMAKE_C_COMPILER_WORKS 1)
 set(CMAKE_CXX_COMPILER_WORKS 1)
 
-project(cafeter CXX)
+project(cafeteria CXX)  # Проект называется cafeteria
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -22,6 +22,6 @@ if(DEFINED Boost_INCLUDE_DIRS)
     include_directories(${Boost_INCLUDE_DIRS})
 endif()
 
-add_executable(cafeter src/main.cpp)
+add_executable(cafeteria src/main.cpp)  # Цель называется cafeteria
 
-target_link_libraries(cafeter Boost::system pthread)
+target_link_libraries(cafeteria Boost::system pthread)
