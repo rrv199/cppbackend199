@@ -11,6 +11,9 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 add_compile_definitions(BOOST_BEAST_USE_STD_STRING_VIEW)
 
+# Включаем header-only режим Boost.Json
+add_compile_definitions(BOOST_JSON_HEADER_ONLY)
+
 # Подключаем Conan
 if(EXISTS ${CMAKE_BINARY_DIR}/conanbuildinfo.cmake)
     include(${CMAKE_BINARY_DIR}/conanbuildinfo.cmake)
@@ -30,6 +33,7 @@ add_executable(game_server
     src/http_server.cpp
     src/json_loader.cpp
     src/request_handler.cpp
+    src/boost_json.cpp
 )
 
 target_link_libraries(game_server Boost::system pthread)
