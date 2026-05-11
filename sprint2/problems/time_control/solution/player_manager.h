@@ -9,6 +9,7 @@
 #include <string>
 #include <cmath>
 #include <algorithm>
+#include <iostream>
 
 class PlayerManager {
 public:
@@ -105,38 +106,43 @@ private:
         double new_x = pos.x + speed.vx * time_delta;
         double new_y = pos.y + speed.vy * time_delta;
         
-        bool at_boundary = false;
+        bool stopped = false;
         
         for (const auto& road : map.GetRoads()) {
             auto start = road.GetStart();
             auto end = road.GetEnd();
             
+            // Горизонтальная дорога
             if (road.IsHorizontal()) {
+                // Проверяем, находится ли игрок на этой дороге по Y
                 if (std::abs(new_y - start.y) < 0.5) {
                     double min_x = std::min(start.x, end.x) - 0.4;
                     double max_x = std::max(start.x, end.x) + 0.4;
                     
                     if (new_x <= min_x) {
                         new_x = min_x;
-                        at_boundary = true;
+                        stopped = true;
                     } else if (new_x >= max_x) {
                         new_x = max_x;
-                        at_boundary = true;
+                        stopped = true;
                     }
                     new_y = static_cast<double>(start.y);
                     break;
                 }
-            } else {
+            }
+            // Вертикальная дорога
+            else {
+                // Проверяем, находится ли игрок на этой дороге по X
                 if (std::abs(new_x - start.x) < 0.5) {
                     double min_y = std::min(start.y, end.y) - 0.4;
                     double max_y = std::max(start.y, end.y) + 0.4;
                     
                     if (new_y <= min_y) {
                         new_y = min_y;
-                        at_boundary = true;
+                        stopped = true;
                     } else if (new_y >= max_y) {
                         new_y = max_y;
-                        at_boundary = true;
+                        stopped = true;
                     }
                     new_x = static_cast<double>(start.x);
                     break;
@@ -144,7 +150,7 @@ private:
             }
         }
         
-        if (at_boundary) {
+        if (stopped) {
             player->SetSpeed(0, 0);
         }
         
