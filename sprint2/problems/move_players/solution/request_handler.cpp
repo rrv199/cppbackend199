@@ -148,8 +148,8 @@ std::string SerializeFullMap(const model::Map& map) {
         office_obj["x"] = pos.x;
         office_obj["y"] = pos.y;
         auto offset = office.GetOffset();
-        office_obj["offsetX"] = 0;
-        office_obj["offsetY"] = 0;
+        office_obj["offsetX"] = offset.dx;
+        office_obj["offsetY"] = offset.dy;
         offices_array.push_back(office_obj);
     }
     result["offices"] = offices_array;
