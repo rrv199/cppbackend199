@@ -90,7 +90,6 @@ private:
         const auto& first_road = roads[0];
         auto start = first_road.GetStart();
         
-        // Возвращаем точку в середине дороги
         if (first_road.IsHorizontal()) {
             return {static_cast<double>(start.x + 0.5), static_cast<double>(start.y)};
         } else {
@@ -102,7 +101,7 @@ private:
         const auto& speed = player->GetSpeed();
         if (speed.vx == 0 && speed.vy == 0) return;
         
-        Point& pos = player->GetPos();
+        Point pos = player->GetPos();
         double new_x = pos.x + speed.vx * time_delta;
         double new_y = pos.y + speed.vy * time_delta;
         
@@ -129,13 +128,11 @@ private:
             }
         }
         
-        // If outside road, stop the player
         if (!current_road) {
             player->SetSpeed(0, 0);
             return;
         }
         
-        // Clamp to road boundaries (road width is 0.8, so half-width is 0.4)
         auto start = current_road->GetStart();
         auto end = current_road->GetEnd();
         
@@ -146,7 +143,6 @@ private:
             if (new_x < min_x) new_x = min_x;
             if (new_x > max_x) new_x = max_x;
             
-            // Stop if at boundary and trying to move further
             if ((speed.vx > 0 && new_x >= max_x) || (speed.vx < 0 && new_x <= min_x)) {
                 player->SetSpeed(0, 0);
             }
@@ -157,14 +153,12 @@ private:
             if (new_y < min_y) new_y = min_y;
             if (new_y > max_y) new_y = max_y;
             
-            // Stop if at boundary and trying to move further
             if ((speed.vy > 0 && new_y >= max_y) || (speed.vy < 0 && new_y <= min_y)) {
                 player->SetSpeed(0, 0);
             }
         }
         
-        pos.x = new_x;
-        pos.y = new_y;
+        player->SetPos({new_x, new_y});
     }
 
     int next_id_ = 0;

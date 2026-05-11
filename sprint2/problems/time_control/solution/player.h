@@ -44,6 +44,7 @@ public:
     const Speed& GetSpeed() const { return speed_; }
     Direction GetDir() const { return dir_; }
     
+    void SetPos(const Point& pos) { pos_ = pos; }
     void SetSpeed(double vx, double vy) {
         speed_.vx = vx;
         speed_.vy = vy;
