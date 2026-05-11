@@ -244,15 +244,25 @@ void RequestHandler::operator()(StringRequest&& req, std::function<void(StringRe
             if (req.method() == http::verb::get || req.method() == http::verb::head) {
                 std::string token;
                 auto auth_it = req.find(http::field::authorization);
-                if (auth_it != req.end()) {
-                    std::string auth = std::string(auth_it->value());
-                    if (auth.find("Bearer ") == 0) {
-                        token = auth.substr(7);
-                    }
+                if (auth_it == req.end()) {
+                    auto response = MakeJsonResponse(http::status::unauthorized,
+                        json::serialize(json::object{{"code", "invalidToken"}, {"message", "Authorization header is missing"}}),
+                        11, true);
+                    send(std::move(response));
+                    return;
                 }
+                std::string auth = std::string(auth_it->value());
+                if (auth.find("Bearer ") != 0) {
+                    auto response = MakeJsonResponse(http::status::unauthorized,
+                        json::serialize(json::object{{"code", "invalidToken"}, {"message", "Invalid authorization header format"}}),
+                        11, true);
+                    send(std::move(response));
+                    return;
+                }
+                token = auth.substr(7);
                 if (token.empty()) {
                     auto response = MakeJsonResponse(http::status::unauthorized,
-                        json::serialize(json::object{{"code", "invalidToken"}, {"message", "Authorization header is required"}}),
+                        json::serialize(json::object{{"code", "invalidToken"}, {"message", "Token is empty"}}),
                         11, true);
                     send(std::move(response));
                     return;
@@ -289,15 +299,25 @@ void RequestHandler::operator()(StringRequest&& req, std::function<void(StringRe
             if (req.method() == http::verb::get || req.method() == http::verb::head) {
                 std::string token;
                 auto auth_it = req.find(http::field::authorization);
-                if (auth_it != req.end()) {
-                    std::string auth = std::string(auth_it->value());
-                    if (auth.find("Bearer ") == 0) {
-                        token = auth.substr(7);
-                    }
+                if (auth_it == req.end()) {
+                    auto response = MakeJsonResponse(http::status::unauthorized,
+                        json::serialize(json::object{{"code", "invalidToken"}, {"message", "Authorization header is missing"}}),
+                        11, true);
+                    send(std::move(response));
+                    return;
                 }
+                std::string auth = std::string(auth_it->value());
+                if (auth.find("Bearer ") != 0) {
+                    auto response = MakeJsonResponse(http::status::unauthorized,
+                        json::serialize(json::object{{"code", "invalidToken"}, {"message", "Invalid authorization header format"}}),
+                        11, true);
+                    send(std::move(response));
+                    return;
+                }
+                token = auth.substr(7);
                 if (token.empty()) {
                     auto response = MakeJsonResponse(http::status::unauthorized,
-                        json::serialize(json::object{{"code", "invalidToken"}, {"message", "Authorization header is required"}}),
+                        json::serialize(json::object{{"code", "invalidToken"}, {"message", "Token is empty"}}),
                         11, true);
                     send(std::move(response));
                     return;
