@@ -88,14 +88,20 @@ private:
         const auto& roads = map.GetRoads();
         if (roads.empty()) return {0.0, 0.0};
         
+        for (const auto& road : roads) {
+            if (road.IsHorizontal()) {
+                auto start = road.GetStart();
+                auto end = road.GetEnd();
+                double mid_x = (start.x + end.x) / 2.0;
+                return {mid_x, static_cast<double>(start.y)};
+            }
+        }
+        
         const auto& first_road = roads[0];
         auto start = first_road.GetStart();
-        
-        if (first_road.IsHorizontal()) {
-            return {static_cast<double>(start.x + 0.5), static_cast<double>(start.y)};
-        } else {
-            return {static_cast<double>(start.x), static_cast<double>(start.y + 0.5)};
-        }
+        auto end = first_road.GetEnd();
+        double mid_y = (start.y + end.y) / 2.0;
+        return {static_cast<double>(start.x), mid_y};
     }
     
     void UpdatePlayerPosition(std::shared_ptr<Player> player, double time_delta, const model::Map& map) {
