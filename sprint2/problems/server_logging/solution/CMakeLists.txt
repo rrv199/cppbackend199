@@ -11,7 +11,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 add_compile_definitions(BOOST_BEAST_USE_STD_STRING_VIEW)
 add_compile_definitions(BOOST_JSON_HEADER_ONLY)
 
-find_package(Boost REQUIRED COMPONENTS system)
+find_package(Boost REQUIRED)
 
 set(SOURCES
     src/main.cpp
