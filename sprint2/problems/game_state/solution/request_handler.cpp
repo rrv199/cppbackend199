@@ -10,6 +10,7 @@
 #include <chrono>
 #include <random>
 #include <iomanip>
+#include <algorithm>
 
 namespace json = boost::json;
 using namespace http_server;
@@ -68,7 +69,6 @@ StringResponse MakeStringResponse(http::status status, std::string_view body, un
 StringResponse MakeJsonResponse(http::status status, const std::string& body, unsigned http_version, bool keep_alive) {
     StringResponse response(status, http_version);
     response.set(http::field::content_type, "application/json");
-    response.set(http::field::cache_control, "no-cache");
     response.body() = body;
     response.content_length(body.size());
     response.keep_alive(keep_alive);
@@ -158,18 +158,22 @@ std::string SerializeFullMap(const model::Map& map) {
 StringResponse HandleJoinGame(const json::value& body, const model::Game& game) {
     try {
         auto obj = body.as_object();
+        
         if (!obj.contains("userName") || !obj.contains("mapId")) {
             return MakeJsonResponse(http::status::bad_request,
                 json::serialize(json::object{{"code", "invalidArgument"}, {"message", "Missing required fields"}}),
                 11, true);
         }
+        
         std::string user_name = json::value_to<std::string>(obj.at("userName"));
         std::string map_id = json::value_to<std::string>(obj.at("mapId"));
+        
         if (user_name.empty()) {
             return MakeJsonResponse(http::status::bad_request,
                 json::serialize(json::object{{"code", "invalidArgument"}, {"message", "Invalid name"}}),
                 11, true);
         }
+        
         bool map_found = false;
         for (const auto& map : game.GetMaps()) {
             if (GetStringFromTagged(map.GetId()) == map_id) {
@@ -177,15 +181,19 @@ StringResponse HandleJoinGame(const json::value& body, const model::Game& game) 
                 break;
             }
         }
+        
         if (!map_found) {
             return MakeJsonResponse(http::status::not_found,
                 json::serialize(json::object{{"code", "mapNotFound"}, {"message", "Map not found"}}),
                 11, true);
         }
+        
         auto [player_id, token] = PlayerManager::Instance().CreatePlayer(user_name, map_id, game);
+        
         json::object result;
         result["authToken"] = token;
         result["playerId"] = player_id;
+        
         return MakeJsonResponse(http::status::ok, json::serialize(result), 11, true);
     } catch (const std::exception& e) {
         return MakeJsonResponse(http::status::bad_request,
@@ -198,14 +206,17 @@ StringResponse HandlePlayers(const std::string& token) {
     auto player = PlayerManager::Instance().GetPlayerByToken(token);
     if (!player) {
         return MakeJsonResponse(http::status::unauthorized,
-            json::serialize(json::object{{"code", "unknownToken"}, {"message", "Player token has not been found"}}),
+            json::serialize(json::object{{"code", "invalidToken"}, {"message", "Player not found"}}),
             11, true);
     }
+    
     auto players = PlayerManager::Instance().GetPlayersOnMap(player->GetMapId());
+    
     json::object result;
     for (const auto& [id, p] : players) {
         result[std::to_string(id)] = {{"name", p->GetName()}};
     }
+    
     return MakeJsonResponse(http::status::ok, json::serialize(result), 11, true);
 }
 
@@ -213,10 +224,12 @@ StringResponse HandleGameState(const std::string& token) {
     auto player = PlayerManager::Instance().GetPlayerByToken(token);
     if (!player) {
         return MakeJsonResponse(http::status::unauthorized,
-            json::serialize(json::object{{"code", "unknownToken"}, {"message", "Player token has not been found"}}),
+            json::serialize(json::object{{"code", "invalidToken"}, {"message", "Player not found"}}),
             11, true);
     }
+    
     auto players = PlayerManager::Instance().GetPlayersOnMap(player->GetMapId());
+    
     json::object players_obj;
     for (const auto& [id, p] : players) {
         json::object player_data;
@@ -225,144 +238,135 @@ StringResponse HandleGameState(const std::string& token) {
         player_data["dir"] = DirectionToString(p->GetDir());
         players_obj[std::to_string(id)] = player_data;
     }
+    
     json::object result;
     result["players"] = players_obj;
+    
     return MakeJsonResponse(http::status::ok, json::serialize(result), 11, true);
 }
 
 void RequestHandler::operator()(StringRequest&& req, std::function<void(StringResponse&&)> send) {
     std::string raw_target(req.target());
     std::string target = raw_target;
+    
     if (!target.empty() && target[0] == '/') {
         target = target.substr(1);
     }
     
-    // API requests
     if (target.find("api/") == 0) {
-        // GET /api/v1/game/state
         if (target == "api/v1/game/state") {
             if (req.method() == http::verb::get || req.method() == http::verb::head) {
                 std::string token;
                 auto auth_it = req.find(http::field::authorization);
-                if (auth_it != req.end()) {
-                    std::string auth = std::string(auth_it->value());
-                    if (auth.find("Bearer ") == 0) {
-                        token = auth.substr(7);
-                    }
-                }
-                if (token.empty()) {
+                if (auth_it == req.end()) {
                     auto response = MakeJsonResponse(http::status::unauthorized,
-                        json::serialize(json::object{{"code", "invalidToken"}, {"message", "Authorization header is required"}}),
+                        json::serialize(json::object{{"code", "invalidToken"}, {"message", "Authorization header missing"}}),
                         11, true);
                     send(std::move(response));
                     return;
                 }
+                
+                std::string auth = std::string(auth_it->value());
+                if (auth.find("Bearer ") != 0) {
+                    auto response = MakeJsonResponse(http::status::unauthorized,
+                        json::serialize(json::object{{"code", "invalidToken"}, {"message", "Invalid auth format"}}),
+                        11, true);
+                    send(std::move(response));
+                    return;
+                }
+                
+                token = auth.substr(7);
+                if (token.length() != 32) {
+                    auto response = MakeJsonResponse(http::status::unauthorized,
+                        json::serialize(json::object{{"code", "invalidToken"}, {"message", "Invalid token length"}}),
+                        11, true);
+                    send(std::move(response));
+                    return;
+                }
+                
                 auto response = HandleGameState(token);
-                send(std::move(response));
-                return;
-            } else {
-                auto response = MakeJsonResponse(http::status::method_not_allowed,
-                    json::serialize(json::object{{"code", "invalidMethod"}, {"message", "Invalid method"}}),
-                    11, true);
-                response.set(http::field::allow, "GET, HEAD");
                 send(std::move(response));
                 return;
             }
         }
-        // POST /api/v1/game/join
+        else if (target == "api/v1/game/players") {
+            if (req.method() == http::verb::get || req.method() == http::verb::head) {
+                std::string token;
+                auto auth_it = req.find(http::field::authorization);
+                if (auth_it == req.end()) {
+                    auto response = MakeJsonResponse(http::status::unauthorized,
+                        json::serialize(json::object{{"code", "invalidToken"}, {"message", "Authorization header missing"}}),
+                        11, true);
+                    send(std::move(response));
+                    return;
+                }
+                
+                std::string auth = std::string(auth_it->value());
+                if (auth.find("Bearer ") != 0) {
+                    auto response = MakeJsonResponse(http::status::unauthorized,
+                        json::serialize(json::object{{"code", "invalidToken"}, {"message", "Invalid auth format"}}),
+                        11, true);
+                    send(std::move(response));
+                    return;
+                }
+                
+                token = auth.substr(7);
+                if (token.length() != 32) {
+                    auto response = MakeJsonResponse(http::status::unauthorized,
+                        json::serialize(json::object{{"code", "invalidToken"}, {"message", "Invalid token length"}}),
+                        11, true);
+                    send(std::move(response));
+                    return;
+                }
+                
+                auto response = HandlePlayers(token);
+                send(std::move(response));
+                return;
+            }
+        }
         else if (target == "api/v1/game/join") {
             if (req.method() == http::verb::post) {
                 auto response = HandleJoinGame(json::parse(req.body()), game_);
                 send(std::move(response));
                 return;
-            } else {
-                auto response = MakeJsonResponse(http::status::method_not_allowed,
-                    json::serialize(json::object{{"code", "invalidMethod"}, {"message", "Only POST method is expected"}}),
-                    11, true);
-                response.set(http::field::allow, "POST");
+            }
+        }
+        else if (target == "api/v1/maps") {
+            if (req.method() == http::verb::get) {
+                auto response = MakeJsonResponse(http::status::ok, SerializeMaps(game_), 11, true);
                 send(std::move(response));
                 return;
             }
         }
-        // GET /api/v1/game/players
-        else if (target == "api/v1/game/players") {
-            if (req.method() == http::verb::get || req.method() == http::verb::head) {
-                std::string token;
-                auto auth_it = req.find(http::field::authorization);
-                if (auth_it != req.end()) {
-                    std::string auth = std::string(auth_it->value());
-                    if (auth.find("Bearer ") == 0) {
-                        token = auth.substr(7);
+        else if (target.find("api/v1/maps/") == 0) {
+            if (req.method() == http::verb::get) {
+                std::string map_id = target.substr(12);
+                const model::Map* found = nullptr;
+                for (const auto& map : game_.GetMaps()) {
+                    if (GetStringFromTagged(map.GetId()) == map_id) {
+                        found = &map;
+                        break;
                     }
                 }
-                if (token.empty()) {
-                    auto response = MakeJsonResponse(http::status::unauthorized,
-                        json::serialize(json::object{{"code", "invalidToken"}, {"message", "Authorization header is required"}}),
+                if (found) {
+                    auto response = MakeJsonResponse(http::status::ok, SerializeFullMap(*found), 11, true);
+                    send(std::move(response));
+                    return;
+                } else {
+                    auto response = MakeJsonResponse(http::status::not_found,
+                        json::serialize(json::object{{"code", "mapNotFound"}, {"message", "Map not found"}}),
                         11, true);
                     send(std::move(response));
                     return;
                 }
-                auto response = HandlePlayers(token);
-                send(std::move(response));
-                return;
-            } else {
-                auto response = MakeJsonResponse(http::status::method_not_allowed,
-                    json::serialize(json::object{{"code", "invalidMethod"}, {"message", "Invalid method"}}),
-                    11, true);
-                response.set(http::field::allow, "GET, HEAD");
-                send(std::move(response));
-                return;
             }
         }
-        // GET /api/v1/maps
-        else if (target == "api/v1/maps") {
-            if (req.method() != http::verb::get) {
-                auto response = MakeJsonResponse(http::status::bad_request,
-                    json::serialize(json::object{{"code", "badRequest"}, {"message", "Bad request"}}),
-                    11, true);
-                send(std::move(response));
-                return;
-            }
-            auto response = MakeJsonResponse(http::status::ok, SerializeMaps(game_), 11, true);
-            send(std::move(response));
-            return;
-        }
-        // GET /api/v1/maps/{id}
-        else if (target.find("api/v1/maps/") == 0) {
-            if (req.method() != http::verb::get) {
-                auto response = MakeJsonResponse(http::status::bad_request,
-                    json::serialize(json::object{{"code", "badRequest"}, {"message", "Bad request"}}),
-                    11, true);
-                send(std::move(response));
-                return;
-            }
-            std::string map_id = target.substr(12);
-            const model::Map* found = nullptr;
-            for (const auto& map : game_.GetMaps()) {
-                if (GetStringFromTagged(map.GetId()) == map_id) {
-                    found = &map;
-                    break;
-                }
-            }
-            if (found) {
-                auto response = MakeJsonResponse(http::status::ok, SerializeFullMap(*found), 11, true);
-                send(std::move(response));
-                return;
-            } else {
-                auto response = MakeJsonResponse(http::status::not_found,
-                    json::serialize(json::object{{"code", "mapNotFound"}, {"message", "Map not found"}}),
-                    11, true);
-                send(std::move(response));
-                return;
-            }
-        }
-        else {
-            auto response = MakeJsonResponse(http::status::bad_request,
-                json::serialize(json::object{{"code", "badRequest"}, {"message", "Bad request"}}),
-                11, true);
-            send(std::move(response));
-            return;
-        }
+        
+        auto response = MakeJsonResponse(http::status::bad_request,
+            json::serialize(json::object{{"code", "badRequest"}, {"message", "Bad request"}}),
+            11, true);
+        send(std::move(response));
+        return;
     }
     
     // Static files
@@ -379,26 +383,34 @@ void RequestHandler::operator()(StringRequest&& req, std::function<void(StringRe
         if (decoded.empty()) {
             decoded = "index.html";
         }
+        
         fs::path file_path = static_root_ / decoded;
         fs::path canonical_path = fs::weakly_canonical(file_path);
         fs::path abs_static_root = fs::weakly_canonical(static_root_);
+        
         if (canonical_path.string().find(abs_static_root.string()) != 0) {
             send(MakeStringResponse(http::status::bad_request, "Bad Request", req.version(), req.keep_alive()));
             return;
         }
+        
         if (fs::is_directory(canonical_path)) {
             canonical_path /= "index.html";
         }
+        
         if (!fs::exists(canonical_path) || !fs::is_regular_file(canonical_path)) {
             send(MakeStringResponse(http::status::not_found, "Not Found", req.version(), req.keep_alive()));
             return;
         }
+        
         std::string mime_type = GetMimeType(canonical_path.string());
         StringResponse response = MakeFileResponse(canonical_path, mime_type, req.version(), req.keep_alive());
+        
         if (req.method() == http::verb::head) {
             response.body() = "";
         }
+        
         send(std::move(response));
+        
     } catch (const std::exception& e) {
         send(MakeStringResponse(http::status::internal_server_error, "Internal Error", req.version(), req.keep_alive()));
     }
