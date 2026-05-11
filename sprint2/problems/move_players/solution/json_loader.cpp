@@ -1,3 +1,4 @@
+#include <boost/json.hpp>
 #include "json_loader.h"
 #include <fstream>
 #include <stdexcept>
