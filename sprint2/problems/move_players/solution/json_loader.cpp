@@ -1,4 +1,3 @@
-#include <boost/json.hpp>
 #include "json_loader.h"
 #include <fstream>
 #include <stdexcept>
@@ -55,7 +54,7 @@ model::Game LoadGame(const std::filesystem::path& json_path) {
         }
         map.SetDogSpeed(dog_speed);
         
-        // Load roads (simplified - just add roads without full parsing for now)
+        // Load roads
         if (map_obj.contains("roads")) {
             for (const auto& road_value : map_obj.at("roads").as_array()) {
                 auto road_obj = road_value.as_object();
@@ -72,6 +71,41 @@ model::Game LoadGame(const std::filesystem::path& json_path) {
                     model::Coord end_y = road_obj.at("y1").as_int64();
                     map.AddRoad(model::Road(model::Road::VerticalTag{}, start, end_y));
                 }
+            }
+        }
+        
+        // Load buildings
+        if (map_obj.contains("buildings")) {
+            for (const auto& building_value : map_obj.at("buildings").as_array()) {
+                auto building_obj = building_value.as_object();
+                std::string building_id = std::to_string(building_obj.at("x").as_int64()) + 
+                                         "_" + std::to_string(building_obj.at("y").as_int64());
+                model::Point pos;
+                model::Size size;
+                pos.x = building_obj.at("x").as_int64();
+                pos.y = building_obj.at("y").as_int64();
+                size.width = building_obj.at("w").as_int64();
+                size.height = building_obj.at("h").as_int64();
+                map.AddBuilding(model::Building(
+                    model::Building::Id{std::move(building_id)},
+                    pos, size));
+            }
+        }
+        
+        // Load offices
+        if (map_obj.contains("offices")) {
+            for (const auto& office_value : map_obj.at("offices").as_array()) {
+                auto office_obj = office_value.as_object();
+                std::string office_id = json::value_to<std::string>(office_obj.at("id"));
+                model::Point pos;
+                model::Offset offset;
+                pos.x = office_obj.at("x").as_int64();
+                pos.y = office_obj.at("y").as_int64();
+                offset.dx = office_obj.at("offsetX").as_int64();
+                offset.dy = office_obj.at("offsetY").as_int64();
+                map.AddOffice(model::Office(
+                    model::Office::Id{std::move(office_id)},
+                    pos, offset));
             }
         }
         
