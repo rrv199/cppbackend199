@@ -207,7 +207,7 @@ StringResponse HandlePlayers(const std::string& token) {
     auto player = PlayerManager::Instance().GetPlayerByToken(token);
     if (!player) {
         return MakeJsonResponse(http::status::unauthorized,
-            json::serialize(json::object{{"code", "invalidToken"}, {"message", "Player not found"}}),
+            json::serialize(json::object{{"code", "unknownToken"}, {"message", "Player token has not been found"}}),
             11, true);
     }
     
@@ -225,7 +225,7 @@ StringResponse HandleGameState(const std::string& token) {
     auto player = PlayerManager::Instance().GetPlayerByToken(token);
     if (!player) {
         return MakeJsonResponse(http::status::unauthorized,
-            json::serialize(json::object{{"code", "invalidToken"}, {"message", "Player not found"}}),
+            json::serialize(json::object{{"code", "unknownToken"}, {"message", "Player token has not been found"}}),
             11, true);
     }
     
