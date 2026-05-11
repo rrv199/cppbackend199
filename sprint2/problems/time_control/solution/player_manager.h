@@ -106,6 +106,7 @@ private:
         double new_y = pos.y + speed.vy * time_delta;
         
         // Находим дорогу и ограничиваем движение
+        bool at_boundary = false;
         for (const auto& road : map.GetRoads()) {
             auto start = road.GetStart();
             auto end = road.GetEnd();
@@ -114,7 +115,14 @@ private:
                 if (std::abs(new_y - start.y) < 0.5) {
                     double min_x = std::min(start.x, end.x) - 0.4;
                     double max_x = std::max(start.x, end.x) + 0.4;
-                    new_x = std::clamp(new_x, min_x, max_x);
+                    
+                    if (new_x <= min_x) {
+                        new_x = min_x;
+                        at_boundary = true;
+                    } else if (new_x >= max_x) {
+                        new_x = max_x;
+                        at_boundary = true;
+                    }
                     new_y = static_cast<double>(start.y);
                     break;
                 }
@@ -122,11 +130,23 @@ private:
                 if (std::abs(new_x - start.x) < 0.5) {
                     double min_y = std::min(start.y, end.y) - 0.4;
                     double max_y = std::max(start.y, end.y) + 0.4;
-                    new_y = std::clamp(new_y, min_y, max_y);
+                    
+                    if (new_y <= min_y) {
+                        new_y = min_y;
+                        at_boundary = true;
+                    } else if (new_y >= max_y) {
+                        new_y = max_y;
+                        at_boundary = true;
+                    }
                     new_x = static_cast<double>(start.x);
                     break;
                 }
             }
+        }
+        
+        // Если достигли границы, останавливаем
+        if (at_boundary) {
+            player->SetSpeed(0, 0);
         }
         
         player->SetPos({new_x, new_y});
