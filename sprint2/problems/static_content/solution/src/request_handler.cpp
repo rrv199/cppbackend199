@@ -99,49 +99,22 @@ std::string SerializeMaps(const model::Game& game) {
 }
 
 std::string SerializeMap(const model::Map& map) {
-    return json::serialize(json::object{
-        {"id", GetStringFromTagged(map.GetId())},
-        {"name", map.GetName()}
-    });
-}
-
-http::status HandleApiRequest(const std::string& target, const model::Game& game, std::string& body) {
-    std::cerr << "DEBUG: API target = " << target << std::endl;
-    
-    // Список карт
-    if (target == "/api/v1/maps") {
-        body = SerializeMaps(game);
-        std::cerr << "DEBUG: Returning maps list" << std::endl;
-        return http::status::ok;
-    }
-    
-    // Информация о конкретной карте
-    if (target.find("/api/v1/maps/") == 0) {
-        std::string map_id = target.substr(14); // длина "/api/v1/maps/"
-        std::cerr << "DEBUG: Looking for map_id = " << map_id << std::endl;
-        for (const auto& map : game.GetMaps()) {
-            std::string id = GetStringFromTagged(map.GetId());
-            std::cerr << "DEBUG: Comparing with map id = " << id << std::endl;
-            if (id == map_id) {
-                body = SerializeMap(map);
-                std::cerr << "DEBUG: Map found!" << std::endl;
-                return http::status::ok;
-            }
-        }
-        body = json::serialize(json::object{{"code", "mapNotFound"}, {"message", "Map not found"}});
-        return http::status::not_found;
-    }
-    
-    body = json::serialize(json::object{{"code", "badRequest"}, {"message", "Bad request"}});
-    return http::status::bad_request;
+    json::object result;
+    result["id"] = GetStringFromTagged(map.GetId());
+    result["name"] = map.GetName();
+    return json::serialize(result);
 }
 
 void RequestHandler::operator()(StringRequest&& req, std::function<void(StringResponse&&)> send) {
     std::string target(req.target());
-    std::cerr << "DEBUG: Request target = " << target << std::endl;
+    
+    // Нормализуем target — убираем ведущий / если есть
+    if (!target.empty() && target[0] == '/') {
+        target = target.substr(1);
+    }
     
     // Обработка API
-    if (target.find("/api/") == 0) {
+    if (target.find("api/") == 0) {
         std::string body;
         http::status status;
         
@@ -149,7 +122,33 @@ void RequestHandler::operator()(StringRequest&& req, std::function<void(StringRe
             body = json::serialize(json::object{{"code", "badRequest"}, {"message", "Bad request"}});
             status = http::status::bad_request;
         } else {
-            status = HandleApiRequest(target, game_, body);
+            // Список карт
+            if (target == "api/v1/maps") {
+                body = SerializeMaps(game_);
+                status = http::status::ok;
+            }
+            // Информация о карте
+            else if (target.find("api/v1/maps/") == 0) {
+                std::string map_id = target.substr(14);
+                const model::Map* found = nullptr;
+                for (const auto& map : game_.GetMaps()) {
+                    if (GetStringFromTagged(map.GetId()) == map_id) {
+                        found = &map;
+                        break;
+                    }
+                }
+                if (found) {
+                    body = SerializeMap(*found);
+                    status = http::status::ok;
+                } else {
+                    body = json::serialize(json::object{{"code", "mapNotFound"}, {"message", "Map not found"}});
+                    status = http::status::not_found;
+                }
+            }
+            else {
+                body = json::serialize(json::object{{"code", "badRequest"}, {"message", "Bad request"}});
+                status = http::status::bad_request;
+            }
         }
         
         StringResponse response(status, req.version());
@@ -169,9 +168,6 @@ void RequestHandler::operator()(StringRequest&& req, std::function<void(StringRe
     
     try {
         std::string decoded = UrlDecode(target);
-        if (!decoded.empty() && decoded[0] == '/') {
-            decoded = decoded.substr(1);
-        }
         
         fs::path file_path = static_root_ / decoded;
         fs::path canonical_path = fs::weakly_canonical(file_path);
