@@ -1,14 +1,14 @@
 cmake_minimum_required(VERSION 3.14)
 
-# Отключаем проверку C компилятора
-set(CMAKE_C_COMPILER_WORKS 1)
-set(CMAKE_CXX_COMPILER_WORKS 1)
+# Явно указываем компиляторы
+set(CMAKE_C_COMPILER /usr/bin/g++)
+set(CMAKE_CXX_COMPILER /usr/bin/g++)
 
-project(logger CXX)
+project(hello_log CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-add_executable(logger main.cpp)
+add_executable(hello_log main.cpp)
 
-target_compile_definitions(logger PRIVATE -DLOG_IMPLEMENTATION)
+target_compile_definitions(hello_log PRIVATE -DLOG_IMPLEMENTATION)
