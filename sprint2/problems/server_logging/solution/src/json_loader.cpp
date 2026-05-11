@@ -80,7 +80,6 @@ model::Game LoadGame(const std::filesystem::path& json_path) {
             }
         }
         
-    std::cerr << "DEBUG: Loading map with id: " << id << std::endl;
         game.AddMap(std::move(map));
     }
     return game;
