@@ -98,20 +98,33 @@ std::string SerializeMaps(const model::Game& game) {
     return json::serialize(maps_array);
 }
 
+std::string SerializeMap(const model::Map& map) {
+    return json::serialize(json::object{
+        {"id", GetStringFromTagged(map.GetId())},
+        {"name", map.GetName()}
+    });
+}
+
 http::status HandleApiRequest(const std::string& target, const model::Game& game, std::string& body) {
+    std::cerr << "DEBUG: API target = " << target << std::endl;
+    
+    // Список карт
     if (target == "/api/v1/maps") {
         body = SerializeMaps(game);
+        std::cerr << "DEBUG: Returning maps list" << std::endl;
         return http::status::ok;
     }
     
+    // Информация о конкретной карте
     if (target.find("/api/v1/maps/") == 0) {
-        std::string map_id = target.substr(14);
+        std::string map_id = target.substr(14); // длина "/api/v1/maps/"
+        std::cerr << "DEBUG: Looking for map_id = " << map_id << std::endl;
         for (const auto& map : game.GetMaps()) {
-            if (GetStringFromTagged(map.GetId()) == map_id) {
-                body = json::serialize(json::object{
-                    {"id", GetStringFromTagged(map.GetId())},
-                    {"name", map.GetName()}
-                });
+            std::string id = GetStringFromTagged(map.GetId());
+            std::cerr << "DEBUG: Comparing with map id = " << id << std::endl;
+            if (id == map_id) {
+                body = SerializeMap(map);
+                std::cerr << "DEBUG: Map found!" << std::endl;
                 return http::status::ok;
             }
         }
@@ -125,6 +138,7 @@ http::status HandleApiRequest(const std::string& target, const model::Game& game
 
 void RequestHandler::operator()(StringRequest&& req, std::function<void(StringResponse&&)> send) {
     std::string target(req.target());
+    std::cerr << "DEBUG: Request target = " << target << std::endl;
     
     // Обработка API
     if (target.find("/api/") == 0) {
@@ -161,28 +175,17 @@ void RequestHandler::operator()(StringRequest&& req, std::function<void(StringRe
         
         fs::path file_path = static_root_ / decoded;
         fs::path canonical_path = fs::weakly_canonical(file_path);
-        
-        // Исправленная проверка безопасности
         fs::path abs_static_root = fs::weakly_canonical(static_root_);
-        std::string cp_str = canonical_path.string();
-        std::string sr_str = abs_static_root.string();
         
-        std::cerr << "DEBUG: abs_static_root = " << sr_str << std::endl;
-        std::cerr << "DEBUG: canonical_path = " << cp_str << std::endl;
-        
-        if (cp_str.find(sr_str) != 0) {
-            std::cerr << "DEBUG: Security violation!" << std::endl;
+        if (canonical_path.string().find(abs_static_root.string()) != 0) {
             send(MakeStringResponse(http::status::bad_request, "Bad Request", req.version(), req.keep_alive()));
             return;
         }
         
-        // Если это директория - добавляем index.html
         if (fs::is_directory(canonical_path)) {
             canonical_path /= "index.html";
-            cp_str = canonical_path.string();
         }
         
-        // Проверка существования файла
         if (!fs::exists(canonical_path) || !fs::is_regular_file(canonical_path)) {
             send(MakeStringResponse(http::status::not_found, "Not Found", req.version(), req.keep_alive()));
             return;
@@ -198,7 +201,6 @@ void RequestHandler::operator()(StringRequest&& req, std::function<void(StringRe
         send(std::move(response));
         
     } catch (const std::exception& e) {
-        std::cerr << "DEBUG: Exception: " << e.what() << std::endl;
         send(MakeStringResponse(http::status::internal_server_error, "Internal Error", req.version(), req.keep_alive()));
     }
 }
