@@ -9,6 +9,9 @@ project(hello_log CXX)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+# Устанавливаем директорию для бинарников
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
+
 add_executable(hello_log main.cpp)
 
 target_compile_definitions(hello_log PRIVATE -DLOG_IMPLEMENTATION)
