@@ -4,6 +4,7 @@
 #include <iostream>
 #include <thread>
 #include <vector>
+#include <filesystem>
 
 #include "json_loader.h"
 #include "request_handler.h"
@@ -13,6 +14,7 @@ using namespace std::literals;
 namespace net = boost::asio;
 namespace sys = boost::system;
 using tcp = net::ip::tcp;
+namespace fs = std::filesystem;
 
 int main(int argc, const char* argv[]) {
     if (argc != 3) {
@@ -22,6 +24,10 @@ int main(int argc, const char* argv[]) {
     
     try {
         model::Game game = json_loader::LoadGame(argv[1]);
+        
+        // Преобразуем путь к статическим файлам в абсолютный
+        fs::path static_path = fs::absolute(fs::path(argv[2]));
+        std::cout << "Static files directory: " << static_path.string() << std::endl;
         
         const unsigned num_threads = std::thread::hardware_concurrency();
         net::io_context ioc(num_threads);
@@ -37,7 +43,7 @@ int main(int argc, const char* argv[]) {
         const unsigned short port = 8080;
         tcp::endpoint endpoint(address, port);
         
-        http_handler::RequestHandler handler{game, argv[2]};
+        http_handler::RequestHandler handler{game, static_path.string()};
         
         http_server::ServeHttp(ioc, endpoint, [&handler](auto&& req, auto&& send) {
             handler(std::forward<decltype(req)>(req), std::forward<decltype(send)>(send));
