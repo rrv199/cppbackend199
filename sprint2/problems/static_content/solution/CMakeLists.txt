@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.14)
 
-# Отключаем проверку C компилятора ДО project()
+# Отключаем проверку C компилятора
 set(CMAKE_C_COMPILER_WORKS 1)
 set(CMAKE_CXX_COMPILER_WORKS 1)
 set(CMAKE_C_COMPILER /usr/bin/g++)
@@ -13,6 +13,12 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 add_compile_definitions(BOOST_BEAST_USE_STD_STRING_VIEW)
 add_compile_definitions(BOOST_JSON_HEADER_ONLY)
+
+# Подключаем Conan (если файл существует)
+if(EXISTS ${CMAKE_BINARY_DIR}/conanbuildinfo.cmake)
+    include(${CMAKE_BINARY_DIR}/conanbuildinfo.cmake)
+    conan_basic_setup()
+endif()
 
 find_package(Boost REQUIRED)
 
