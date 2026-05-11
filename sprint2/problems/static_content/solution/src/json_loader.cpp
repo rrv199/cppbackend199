@@ -1,3 +1,4 @@
+#include <iostream>
 #include "json_loader.h"
 #include <boost/json.hpp>
 #include <fstream>
@@ -79,6 +80,7 @@ model::Game LoadGame(const std::filesystem::path& json_path) {
             }
         }
         
+    std::cerr << "DEBUG: Loading map with id: " << id << std::endl;
         game.AddMap(std::move(map));
     }
     return game;
