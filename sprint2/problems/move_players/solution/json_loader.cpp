@@ -8,6 +8,17 @@ namespace json = boost::json;
 
 namespace json_loader {
 
+double GetDoubleFromValue(const json::value& val, double default_val = 1.0) {
+    if (val.is_int64()) {
+        return static_cast<double>(val.as_int64());
+    } else if (val.is_uint64()) {
+        return static_cast<double>(val.as_uint64());
+    } else if (val.is_double()) {
+        return val.as_double();
+    }
+    return default_val;
+}
+
 model::Game LoadGame(const std::filesystem::path& json_path) {
     std::ifstream file(json_path);
     if (!file.is_open()) {
@@ -25,7 +36,7 @@ model::Game LoadGame(const std::filesystem::path& json_path) {
     // Read default dog speed
     double default_dog_speed = 1.0;
     if (obj.contains("defaultDogSpeed")) {
-        default_dog_speed = obj.at("defaultDogSpeed").as_double();
+        default_dog_speed = GetDoubleFromValue(obj.at("defaultDogSpeed"));
     }
     
     // Load maps
@@ -51,7 +62,7 @@ model::Game LoadGame(const std::filesystem::path& json_path) {
         // Set dog speed for this map
         double dog_speed = default_dog_speed;
         if (map_obj.contains("dogSpeed")) {
-            dog_speed = map_obj.at("dogSpeed").as_double();
+            dog_speed = GetDoubleFromValue(map_obj.at("dogSpeed"));
         }
         map.SetDogSpeed(dog_speed);
         
@@ -64,11 +75,9 @@ model::Game LoadGame(const std::filesystem::path& json_path) {
                 start.y = road_obj.at("y0").as_int64();
                 
                 if (road_obj.contains("x1")) {
-                    // Horizontal road
                     model::Coord end_x = road_obj.at("x1").as_int64();
                     map.AddRoad(model::Road(model::Road::HorizontalTag{}, start, end_x));
                 } else if (road_obj.contains("y1")) {
-                    // Vertical road
                     model::Coord end_y = road_obj.at("y1").as_int64();
                     map.AddRoad(model::Road(model::Road::VerticalTag{}, start, end_y));
                 }
@@ -102,8 +111,8 @@ model::Game LoadGame(const std::filesystem::path& json_path) {
                 model::Offset offset;
                 pos.x = office_obj.at("x").as_int64();
                 pos.y = office_obj.at("y").as_int64();
-                offset.dx = static_cast<int>(office_obj.at("offsetX").as_double());
-                offset.dy = static_cast<int>(office_obj.at("offsetY").as_double());
+                offset.dx = static_cast<int>(office_obj.at("offsetX").as_int64());
+                offset.dy = static_cast<int>(office_obj.at("offsetY").as_int64());
                 map.AddOffice(model::Office(
                     model::Office::Id{std::move(office_id)},
                     pos, offset));
