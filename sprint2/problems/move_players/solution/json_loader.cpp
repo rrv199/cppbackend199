@@ -102,8 +102,8 @@ model::Game LoadGame(const std::filesystem::path& json_path) {
                 model::Offset offset;
                 pos.x = office_obj.at("x").as_int64();
                 pos.y = office_obj.at("y").as_int64();
-                offset.dx = office_obj.at("offsetX").as_int64();
-                offset.dy = office_obj.at("offsetY").as_int64();
+                offset.dx = static_cast<int>(office_obj.at("offsetX").as_double());
+                offset.dy = static_cast<int>(office_obj.at("offsetY").as_double());
                 map.AddOffice(model::Office(
                     model::Office::Id{std::move(office_id)},
                     pos, offset));
