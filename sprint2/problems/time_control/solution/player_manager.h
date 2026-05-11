@@ -8,6 +8,7 @@
 #include <memory>
 #include <string>
 #include <cmath>
+#include <algorithm>
 
 class PlayerManager {
 public:
@@ -54,14 +55,17 @@ public:
         auto it = map_players_.find(map_id);
         if (it == map_players_.end()) return;
         
+        const model::Map* map = nullptr;
+        for (const auto& m : game.GetMaps()) {
+            if (GetStringFromTagged(m.GetId()) == map_id) {
+                map = &m;
+                break;
+            }
+        }
+        if (!map) return;
+        
         for (auto& [id, player] : it->second) {
-            const auto& speed = player->GetSpeed();
-            if (speed.vx == 0 && speed.vy == 0) continue;
-            
-            Point pos = player->GetPos();
-            pos.x += speed.vx * time_delta;
-            pos.y += speed.vy * time_delta;
-            player->SetPos(pos);
+            UpdatePlayerPosition(player, time_delta, *map);
         }
     }
 
@@ -91,6 +95,41 @@ private:
         } else {
             return {static_cast<double>(start.x), static_cast<double>(start.y + 0.5)};
         }
+    }
+    
+    void UpdatePlayerPosition(std::shared_ptr<Player> player, double time_delta, const model::Map& map) {
+        const auto& speed = player->GetSpeed();
+        if (speed.vx == 0 && speed.vy == 0) return;
+        
+        Point pos = player->GetPos();
+        double new_x = pos.x + speed.vx * time_delta;
+        double new_y = pos.y + speed.vy * time_delta;
+        
+        // Находим дорогу и ограничиваем движение
+        for (const auto& road : map.GetRoads()) {
+            auto start = road.GetStart();
+            auto end = road.GetEnd();
+            
+            if (road.IsHorizontal()) {
+                if (std::abs(new_y - start.y) < 0.5) {
+                    double min_x = std::min(start.x, end.x) - 0.4;
+                    double max_x = std::max(start.x, end.x) + 0.4;
+                    new_x = std::clamp(new_x, min_x, max_x);
+                    new_y = static_cast<double>(start.y);
+                    break;
+                }
+            } else {
+                if (std::abs(new_x - start.x) < 0.5) {
+                    double min_y = std::min(start.y, end.y) - 0.4;
+                    double max_y = std::max(start.y, end.y) + 0.4;
+                    new_y = std::clamp(new_y, min_y, max_y);
+                    new_x = static_cast<double>(start.x);
+                    break;
+                }
+            }
+        }
+        
+        player->SetPos({new_x, new_y});
     }
 
     int next_id_ = 0;
