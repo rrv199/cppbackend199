@@ -1,4 +1,5 @@
 #include "request_handler.h"
+#include "logger.h"
 #include <boost/json.hpp>
 #include <fstream>
 #include <filesystem>
@@ -6,6 +7,7 @@
 #include <cctype>
 #include <sstream>
 #include <iostream>
+#include <chrono>
 
 namespace json = boost::json;
 using namespace http_server;
@@ -144,16 +146,30 @@ std::string SerializeFullMap(const model::Map& map) {
 void RequestHandler::operator()(StringRequest&& req, std::function<void(StringResponse&&)> send) {
     std::string raw_target(req.target());
     std::string target = raw_target;
-
+    
+    // Получаем IP клиента
+    std::string client_ip = "unknown";
+    auto it = req.find("X-Forwarded-For");
+    if (it != req.end()) {
+        client_ip = std::string(it->value());
+    } else {
+        client_ip = "127.0.0.1";
+    }
+    
+    // Логируем запрос
+    Logger::Instance().LogRequest(client_ip, raw_target, std::string(req.method_string()));
+    
+    auto start_time = std::chrono::steady_clock::now();
+    
     if (!target.empty() && target[0] == '/') {
         target = target.substr(1);
     }
-
+    
     // API requests
     if (target.find("api/") == 0) {
         std::string body;
         http::status status;
-
+        
         if (req.method() != http::verb::get) {
             body = json::serialize(json::object{{"code", "badRequest"}, {"message", "Bad request"}});
             status = http::status::bad_request;
@@ -180,22 +196,33 @@ void RequestHandler::operator()(StringRequest&& req, std::function<void(StringRe
             body = json::serialize(json::object{{"code", "badRequest"}, {"message", "Bad request"}});
             status = http::status::bad_request;
         }
-
+        
         StringResponse response(status, req.version());
         response.set(http::field::content_type, "application/json");
         response.body() = body;
         response.content_length(body.size());
         response.keep_alive(req.keep_alive());
+        
+        auto end_time = std::chrono::steady_clock::now();
+        int response_time = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count();
+        
+        std::string content_type = "application/json";
+        Logger::Instance().LogResponse(response_time, response.result_int(), content_type);
+        
         send(std::move(response));
         return;
     }
-
+    
     // Static files
     if (req.method() != http::verb::get && req.method() != http::verb::head) {
-        send(MakeStringResponse(http::status::method_not_allowed, "Method not allowed", req.version(), req.keep_alive()));
+        auto response = MakeStringResponse(http::status::method_not_allowed, "Method not allowed", req.version(), req.keep_alive());
+        auto end_time = std::chrono::steady_clock::now();
+        int response_time = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count();
+        Logger::Instance().LogResponse(response_time, response.result_int(), "text/plain");
+        send(std::move(response));
         return;
     }
-
+    
     try {
         std::string decoded = UrlDecode(target);
         if (!decoded.empty() && decoded[0] == '/') {
@@ -204,36 +231,52 @@ void RequestHandler::operator()(StringRequest&& req, std::function<void(StringRe
         if (decoded.empty()) {
             decoded = "index.html";
         }
-
+        
         fs::path file_path = static_root_ / decoded;
         fs::path canonical_path = fs::weakly_canonical(file_path);
         fs::path abs_static_root = fs::weakly_canonical(static_root_);
-
+        
         if (canonical_path.string().find(abs_static_root.string()) != 0) {
-            send(MakeStringResponse(http::status::bad_request, "Bad Request", req.version(), req.keep_alive()));
+            auto response = MakeStringResponse(http::status::bad_request, "Bad Request", req.version(), req.keep_alive());
+            auto end_time = std::chrono::steady_clock::now();
+            int response_time = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count();
+            Logger::Instance().LogResponse(response_time, response.result_int(), "text/plain");
+            send(std::move(response));
             return;
         }
-
+        
         if (fs::is_directory(canonical_path)) {
             canonical_path /= "index.html";
         }
-
+        
         if (!fs::exists(canonical_path) || !fs::is_regular_file(canonical_path)) {
-            send(MakeStringResponse(http::status::not_found, "Not Found", req.version(), req.keep_alive()));
+            auto response = MakeStringResponse(http::status::not_found, "Not Found", req.version(), req.keep_alive());
+            auto end_time = std::chrono::steady_clock::now();
+            int response_time = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count();
+            Logger::Instance().LogResponse(response_time, response.result_int(), "text/plain");
+            send(std::move(response));
             return;
         }
-
+        
         std::string mime_type = GetMimeType(canonical_path.string());
         StringResponse response = MakeFileResponse(canonical_path, mime_type, req.version(), req.keep_alive());
-
+        
         if (req.method() == http::verb::head) {
             response.body() = "";
         }
-
+        
+        auto end_time = std::chrono::steady_clock::now();
+        int response_time = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count();
+        Logger::Instance().LogResponse(response_time, response.result_int(), mime_type);
+        
         send(std::move(response));
-
+        
     } catch (const std::exception& e) {
-        send(MakeStringResponse(http::status::internal_server_error, "Internal Error", req.version(), req.keep_alive()));
+        auto response = MakeStringResponse(http::status::internal_server_error, "Internal Error", req.version(), req.keep_alive());
+        auto end_time = std::chrono::steady_clock::now();
+        int response_time = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count();
+        Logger::Instance().LogResponse(response_time, response.result_int(), "text/plain");
+        send(std::move(response));
     }
 }
 

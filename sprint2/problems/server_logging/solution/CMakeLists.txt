@@ -11,14 +11,14 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 add_compile_definitions(BOOST_BEAST_USE_STD_STRING_VIEW)
 add_compile_definitions(BOOST_JSON_HEADER_ONLY)
 
-# Boost.Log требует отдельной линковки
-find_package(Boost REQUIRED COMPONENTS system log log_setup thread)
+find_package(Boost REQUIRED COMPONENTS system)
 
 set(SOURCES
     src/main.cpp
     src/http_server.cpp
     src/json_loader.cpp
     src/request_handler.cpp
+    src/boost_json.cpp
 )
 
 add_executable(game_server ${SOURCES})

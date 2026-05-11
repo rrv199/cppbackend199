@@ -1,69 +1,97 @@
 #pragma once
 
-#include <boost/log/trivial.hpp>
-#include <boost/log/attributes.hpp>
-#include <boost/log/expressions.hpp>
-#include <boost/log/utility/setup/console.hpp>
-#include <boost/log/utility/setup/common_attributes.hpp>
-#include <boost/log/support/date_time.hpp>
 #include <boost/json.hpp>
 #include <iostream>
+#include <chrono>
+#include <iomanip>
+#include <ctime>
+#include <mutex>
+#include <string>
 
-namespace logging = boost::log;
-namespace keywords = boost::log::keywords;
 namespace json = boost::json;
-
-// Атрибуты для дополнительных данных
-BOOST_LOG_ATTRIBUTE_KEYWORD(additional_data, "AdditionalData", json::value)
 
 class Logger {
 public:
-    static void Init() {
-        // Добавляем общие атрибуты
-        logging::add_common_attributes();
+    static Logger& Instance() {
+        static Logger instance;
+        return instance;
+    }
+    
+    void Log(const json::value& data, const std::string& message) {
+        std::lock_guard<std::mutex> lock(mutex_);
         
-        // Настраиваем формат вывода
-        logging::formatter formatter = [] (logging::record_view const& rec, logging::formatting_ostream& str) {
-            json::object obj;
-            
-            // timestamp
-            auto timestamp = logging::extract<boost::posix_time::ptime>("TimeStamp", rec);
-            if (timestamp) {
-                obj["timestamp"] = boost::posix_time::to_iso_extended_string(*timestamp);
-            }
-            
-            // message
-            auto message = logging::extract<std::string>("Message", rec);
-            if (message) {
-                obj["message"] = *message;
-            }
-            
-            // additional data
-            auto data = rec[additional_data];
-            if (data) {
-                obj["data"] = data.extract<json::value>();
-            }
-            
-            str << json::serialize(obj);
+        json::object obj;
+        obj["timestamp"] = GetTimestamp();
+        obj["message"] = message;
+        obj["data"] = data;
+        
+        std::cout << json::serialize(obj) << std::endl;
+    }
+    
+    void LogRequest(const std::string& ip, const std::string& uri, const std::string& method) {
+        json::value data = {
+            {"ip", ip},
+            {"URI", uri},
+            {"method", method}
         };
-        
-        // Настраиваем вывод в консоль
-        logging::add_console_log(std::cout, keywords::format = formatter);
-        
-        // Устанавливаем severity level
-        logging::core::get()->set_filter(logging::trivial::severity >= logging::trivial::info);
+        Log(data, "request received");
     }
     
-    template<typename T>
-    static void Log(logging::trivial::severity_level level, T&& message) {
-        BOOST_LOG_STREAM_WITH_PARAMS(::boost::log::trivial::logger::get(), \
-            (::boost::log::keywords::severity = level)) << message;
+    void LogResponse(int response_time, int code, const std::string& content_type) {
+        json::value data = {
+            {"response_time", response_time},
+            {"code", code}
+        };
+        if (!content_type.empty()) {
+            data.as_object()["content_type"] = content_type;
+        } else {
+            data.as_object()["content_type"] = nullptr;
+        }
+        Log(data, "response sent");
     }
     
-    template<typename T>
-    static void Log(json::value data, logging::trivial::severity_level level, T&& message) {
-        BOOST_LOG_STREAM_WITH_PARAMS(::boost::log::trivial::logger::get(), \
-            (::boost::log::keywords::severity = level)) \
-            << logging::add_value(additional_data, std::move(data)) << message;
+    void LogError(int code, const std::string& text, const std::string& where) {
+        json::value data = {
+            {"code", code},
+            {"text", text},
+            {"where", where}
+        };
+        Log(data, "error");
     }
+    
+    void LogServerStarted(int port, const std::string& address) {
+        json::value data = {
+            {"port", port},
+            {"address", address}
+        };
+        Log(data, "server started");
+    }
+    
+    void LogServerExited(int code, const std::string& exception = "") {
+        json::value data = {{"code", code}};
+        if (!exception.empty()) {
+            data.as_object()["exception"] = exception;
+        }
+        Log(data, "server exited");
+    }
+    
+private:
+    Logger() = default;
+    
+    std::string GetTimestamp() {
+        auto now = std::chrono::system_clock::now();
+        auto time_t = std::chrono::system_clock::to_time_t(now);
+        auto ms = std::chrono::duration_cast<std::chrono::microseconds>(
+            now.time_since_epoch()) % 1000000;
+        
+        std::tm tm;
+        localtime_r(&time_t, &tm);
+        
+        std::ostringstream oss;
+        oss << std::put_time(&tm, "%Y-%m-%dT%H:%M:%S")
+            << "." << std::setfill('0') << std::setw(6) << ms.count();
+        return oss.str();
+    }
+    
+    std::mutex mutex_;
 };
