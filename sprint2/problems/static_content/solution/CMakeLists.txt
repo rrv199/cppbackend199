@@ -1,9 +1,12 @@
 cmake_minimum_required(VERSION 3.14)
-project(game_server)
 
-# Отключаем проверку C компилятора
+# Отключаем проверку C компилятора ДО project()
 set(CMAKE_C_COMPILER_WORKS 1)
 set(CMAKE_CXX_COMPILER_WORKS 1)
+set(CMAKE_C_COMPILER /usr/bin/g++)
+set(CMAKE_CXX_COMPILER /usr/bin/g++)
+
+project(game_server)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
