@@ -518,6 +518,29 @@ void RequestHandler::operator()(StringRequest&& req, std::function<void(StringRe
                 return;
             }
         }
+                else if (target == "api/v1/game/tick") {
+            if (req.method() == http::verb::post) {
+                auto content_type_it = req.find(http::field::content_type);
+                if (content_type_it == req.end() || 
+                    std::string(content_type_it->value()) != "application/json") {
+                    auto response = MakeJsonResponse(http::status::bad_request,
+                        json::serialize(json::object{{"code", "invalidArgument"}, {"message", "Invalid content type"}}),
+                        11, true);
+                    send(std::move(response));
+                    return;
+                }
+                auto response = HandleGameTick(json::parse(req.body()), game_);
+                send(std::move(response));
+                return;
+            } else {
+                auto response = MakeJsonResponse(http::status::method_not_allowed,
+                    json::serialize(json::object{{"code", "invalidMethod"}, {"message", "Invalid method"}}),
+                    11, true);
+                response.set(http::field::allow, "POST");
+                send(std::move(response));
+                return;
+            }
+        }
         else if (target == "api/v1/maps") {
             if (req.method() == http::verb::get) {
                 auto response = MakeJsonResponse(http::status::ok, SerializeMaps(game_), 11, true);
