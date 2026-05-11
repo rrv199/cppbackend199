@@ -1,4 +1,5 @@
 #include "request_handler.h"
+#include "player_manager.h"
 #include <boost/json.hpp>
 #include <fstream>
 #include <filesystem>
@@ -6,6 +7,9 @@
 #include <cctype>
 #include <sstream>
 #include <iostream>
+#include <chrono>
+#include <random>
+#include <iomanip>
 
 namespace json = boost::json;
 using namespace http_server;
@@ -55,6 +59,16 @@ std::string GetMimeType(const std::string& path) {
 StringResponse MakeStringResponse(http::status status, std::string_view body, unsigned http_version, bool keep_alive) {
     StringResponse response(status, http_version);
     response.set(http::field::content_type, "text/plain");
+    response.body() = body;
+    response.content_length(body.size());
+    response.keep_alive(keep_alive);
+    return response;
+}
+
+StringResponse MakeJsonResponse(http::status status, const std::string& body, unsigned http_version, bool keep_alive) {
+    StringResponse response(status, http_version);
+    response.set(http::field::content_type, "application/json");
+    response.set(http::field::cache_control, "no-cache");
     response.body() = body;
     response.content_length(body.size());
     response.keep_alive(keep_alive);
@@ -141,61 +155,189 @@ std::string SerializeFullMap(const model::Map& map) {
     return json::serialize(result);
 }
 
+StringResponse HandleJoinGame(const json::value& body, const model::Game& game) {
+    try {
+        auto obj = body.as_object();
+        
+        if (!obj.contains("userName") || !obj.contains("mapId")) {
+            return MakeJsonResponse(http::status::bad_request,
+                json::serialize(json::object{{"code", "invalidArgument"}, {"message", "Missing required fields"}}),
+                11, true);
+        }
+        
+        std::string user_name = json::value_to<std::string>(obj.at("userName"));
+        std::string map_id = json::value_to<std::string>(obj.at("mapId"));
+        
+        // Проверка на пустое имя
+        if (user_name.empty()) {
+            return MakeJsonResponse(http::status::bad_request,
+                json::serialize(json::object{{"code", "invalidArgument"}, {"message", "Invalid name"}}),
+                11, true);
+        }
+        
+        // Проверка существования карты
+        bool map_found = false;
+        for (const auto& map : game.GetMaps()) {
+            if (GetStringFromTagged(map.GetId()) == map_id) {
+                map_found = true;
+                break;
+            }
+        }
+        
+        if (!map_found) {
+            return MakeJsonResponse(http::status::not_found,
+                json::serialize(json::object{{"code", "mapNotFound"}, {"message", "Map not found"}}),
+                11, true);
+        }
+        
+        auto [player_id, token] = PlayerManager::Instance().CreatePlayer(user_name, map_id);
+        
+        json::object result;
+        result["authToken"] = token;
+        result["playerId"] = player_id;
+        
+        return MakeJsonResponse(http::status::ok, json::serialize(result), 11, true);
+    } catch (const std::exception& e) {
+        return MakeJsonResponse(http::status::bad_request,
+            json::serialize(json::object{{"code", "invalidArgument"}, {"message", "Join game request parse error"}}),
+            11, true);
+    }
+}
+
+StringResponse HandlePlayers(const std::string& token, const model::Game& game) {
+    // Проверка токена
+    auto player = PlayerManager::Instance().GetPlayerByToken(token);
+    if (!player) {
+        return MakeJsonResponse(http::status::unauthorized,
+            json::serialize(json::object{{"code", "unknownToken"}, {"message", "Player token has not been found"}}),
+            11, true);
+    }
+    
+    // Получаем всех игроков на той же карте
+    auto players = PlayerManager::Instance().GetPlayersOnMap(player->GetMapId());
+    
+    json::object result;
+    for (const auto& [id, p] : players) {
+        result[std::to_string(id)] = json::object{{"name", p->GetName()}};
+    }
+    
+    return MakeJsonResponse(http::status::ok, json::serialize(result), 11, true);
+}
+
 void RequestHandler::operator()(StringRequest&& req, std::function<void(StringResponse&&)> send) {
     std::string raw_target(req.target());
     std::string target = raw_target;
-
+    
     if (!target.empty() && target[0] == '/') {
         target = target.substr(1);
     }
-
+    
     // API requests
     if (target.find("api/") == 0) {
         std::string body;
         http::status status;
-
-        if (req.method() != http::verb::get) {
-            body = json::serialize(json::object{{"code", "badRequest"}, {"message", "Bad request"}});
-            status = http::status::bad_request;
-        } else if (target == "api/v1/maps") {
-            body = SerializeMaps(game_);
-            status = http::status::ok;
-        } else if (target.find("api/v1/maps/") == 0) {
-            std::string map_id = target.substr(12);
-            const model::Map* found = nullptr;
-            for (const auto& map : game_.GetMaps()) {
-                if (GetStringFromTagged(map.GetId()) == map_id) {
-                    found = &map;
-                    break;
+        bool is_api = true;
+        bool add_allow_header = false;
+        std::string allow_methods;
+        
+        // POST /api/v1/game/join
+        if (target == "api/v1/game/join") {
+            if (req.method() == http::verb::post) {
+                auto response = HandleJoinGame(json::parse(req.body()), game_);
+                send(std::move(response));
+                return;
+            } else {
+                body = json::serialize(json::object{
+                    {"code", "invalidMethod"},
+                    {"message", "Only POST method is expected"}
+                });
+                status = http::status::method_not_allowed;
+                add_allow_header = true;
+                allow_methods = "POST";
+            }
+        }
+        // GET /api/v1/game/players
+        else if (target == "api/v1/game/players") {
+            if (req.method() == http::verb::get || req.method() == http::verb::head) {
+                // Извлекаем токен из заголовка Authorization
+                std::string token;
+                auto auth_it = req.find(http::field::authorization);
+                if (auth_it != req.end()) {
+                    std::string auth = std::string(auth_it->value());
+                    if (auth.find("Bearer ") == 0) {
+                        token = auth.substr(7);
+                    }
+                }
+                if (token.empty()) {
+                    body = json::serialize(json::object{{"code", "invalidToken"}, {"message", "Authorization header is missing or invalid"}});
+                    status = http::status::unauthorized;
+                } else {
+                    auto response = HandlePlayers(token, game_);
+                    send(std::move(response));
+                    return;
+                }
+            } else {
+                body = json::serialize(json::object{
+                    {"code", "invalidMethod"},
+                    {"message", "Invalid method"}
+                });
+                status = http::status::method_not_allowed;
+                add_allow_header = true;
+                allow_methods = "GET, HEAD";
+            }
+        }
+        // GET /api/v1/maps
+        else if (target == "api/v1/maps") {
+            if (req.method() != http::verb::get) {
+                body = json::serialize(json::object{{"code", "badRequest"}, {"message", "Bad request"}});
+                status = http::status::bad_request;
+            } else {
+                body = SerializeMaps(game_);
+                status = http::status::ok;
+            }
+        }
+        // GET /api/v1/maps/{id}
+        else if (target.find("api/v1/maps/") == 0) {
+            if (req.method() != http::verb::get) {
+                body = json::serialize(json::object{{"code", "badRequest"}, {"message", "Bad request"}});
+                status = http::status::bad_request;
+            } else {
+                std::string map_id = target.substr(12);
+                const model::Map* found = nullptr;
+                for (const auto& map : game_.GetMaps()) {
+                    if (GetStringFromTagged(map.GetId()) == map_id) {
+                        found = &map;
+                        break;
+                    }
+                }
+                if (found) {
+                    body = SerializeFullMap(*found);
+                    status = http::status::ok;
+                } else {
+                    body = json::serialize(json::object{{"code", "mapNotFound"}, {"message", "Map not found"}});
+                    status = http::status::not_found;
                 }
             }
-            if (found) {
-                body = SerializeFullMap(*found);
-                status = http::status::ok;
-            } else {
-                body = json::serialize(json::object{{"code", "mapNotFound"}, {"message", "Map not found"}});
-                status = http::status::not_found;
-            }
-        } else {
+        }
+        else {
             body = json::serialize(json::object{{"code", "badRequest"}, {"message", "Bad request"}});
             status = http::status::bad_request;
         }
-
-        StringResponse response(status, req.version());
-        response.set(http::field::content_type, "application/json");
-        response.body() = body;
-        response.content_length(body.size());
-        response.keep_alive(req.keep_alive());
+        
+        auto response = MakeJsonResponse(status, body, req.version(), req.keep_alive());
+        if (add_allow_header) {
+            response.set(http::field::allow, allow_methods);
+        }
         send(std::move(response));
         return;
     }
-
+    
     // Static files
     if (req.method() != http::verb::get && req.method() != http::verb::head) {
         send(MakeStringResponse(http::status::method_not_allowed, "Method not allowed", req.version(), req.keep_alive()));
         return;
     }
-
+    
     try {
         std::string decoded = UrlDecode(target);
         if (!decoded.empty() && decoded[0] == '/') {
@@ -204,34 +346,34 @@ void RequestHandler::operator()(StringRequest&& req, std::function<void(StringRe
         if (decoded.empty()) {
             decoded = "index.html";
         }
-
+        
         fs::path file_path = static_root_ / decoded;
         fs::path canonical_path = fs::weakly_canonical(file_path);
         fs::path abs_static_root = fs::weakly_canonical(static_root_);
-
+        
         if (canonical_path.string().find(abs_static_root.string()) != 0) {
             send(MakeStringResponse(http::status::bad_request, "Bad Request", req.version(), req.keep_alive()));
             return;
         }
-
+        
         if (fs::is_directory(canonical_path)) {
             canonical_path /= "index.html";
         }
-
+        
         if (!fs::exists(canonical_path) || !fs::is_regular_file(canonical_path)) {
             send(MakeStringResponse(http::status::not_found, "Not Found", req.version(), req.keep_alive()));
             return;
         }
-
+        
         std::string mime_type = GetMimeType(canonical_path.string());
         StringResponse response = MakeFileResponse(canonical_path, mime_type, req.version(), req.keep_alive());
-
+        
         if (req.method() == http::verb::head) {
             response.body() = "";
         }
-
+        
         send(std::move(response));
-
+        
     } catch (const std::exception& e) {
         send(MakeStringResponse(http::status::internal_server_error, "Internal Error", req.version(), req.keep_alive()));
     }
