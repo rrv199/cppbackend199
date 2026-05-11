@@ -288,6 +288,13 @@ void RequestHandler::operator()(StringRequest&& req, std::function<void(StringRe
                 auto response = HandleGameState(token);
                 send(std::move(response));
                 return;
+            } else {
+                auto response = MakeJsonResponse(http::status::method_not_allowed,
+                    json::serialize(json::object{{"code", "invalidMethod"}, {"message", "Method not allowed"}}),
+                    11, true);
+                response.set(http::field::allow, "GET, HEAD");
+                send(std::move(response));
+                return;
             }
         }
         else if (target == "api/v1/game/players") {
@@ -323,6 +330,13 @@ void RequestHandler::operator()(StringRequest&& req, std::function<void(StringRe
                 auto response = HandlePlayers(token);
                 send(std::move(response));
                 return;
+            } else {
+                auto response = MakeJsonResponse(http::status::method_not_allowed,
+                    json::serialize(json::object{{"code", "invalidMethod"}, {"message", "Method not allowed"}}),
+                    11, true);
+                response.set(http::field::allow, "GET, HEAD");
+                send(std::move(response));
+                return;
             }
         }
         else if (target == "api/v1/game/join") {
@@ -330,11 +344,25 @@ void RequestHandler::operator()(StringRequest&& req, std::function<void(StringRe
                 auto response = HandleJoinGame(json::parse(req.body()), game_);
                 send(std::move(response));
                 return;
+            } else {
+                auto response = MakeJsonResponse(http::status::method_not_allowed,
+                    json::serialize(json::object{{"code", "invalidMethod"}, {"message", "Method not allowed"}}),
+                    11, true);
+                response.set(http::field::allow, "POST");
+                send(std::move(response));
+                return;
             }
         }
         else if (target == "api/v1/maps") {
             if (req.method() == http::verb::get) {
                 auto response = MakeJsonResponse(http::status::ok, SerializeMaps(game_), 11, true);
+                send(std::move(response));
+                return;
+            } else {
+                auto response = MakeJsonResponse(http::status::method_not_allowed,
+                    json::serialize(json::object{{"code", "invalidMethod"}, {"message", "Method not allowed"}}),
+                    11, true);
+                response.set(http::field::allow, "GET");
                 send(std::move(response));
                 return;
             }
@@ -360,14 +388,22 @@ void RequestHandler::operator()(StringRequest&& req, std::function<void(StringRe
                     send(std::move(response));
                     return;
                 }
+            } else {
+                auto response = MakeJsonResponse(http::status::method_not_allowed,
+                    json::serialize(json::object{{"code", "invalidMethod"}, {"message", "Method not allowed"}}),
+                    11, true);
+                response.set(http::field::allow, "GET");
+                send(std::move(response));
+                return;
             }
         }
-        
-        auto response = MakeJsonResponse(http::status::bad_request,
-            json::serialize(json::object{{"code", "badRequest"}, {"message", "Bad request"}}),
-            11, true);
-        send(std::move(response));
-        return;
+        else {
+            auto response = MakeJsonResponse(http::status::bad_request,
+                json::serialize(json::object{{"code", "badRequest"}, {"message", "Bad request"}}),
+                11, true);
+            send(std::move(response));
+            return;
+        }
     }
     
     // Static files
