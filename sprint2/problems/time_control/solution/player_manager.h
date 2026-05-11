@@ -28,7 +28,6 @@ public:
             }
         }
         
-        // Начальная позиция - начало первой дороги
         Point pos = GetStartPosition(*found_map);
         
         auto player = std::make_shared<Player>(id, name, token, map_id, pos);
@@ -55,17 +54,14 @@ public:
         auto it = map_players_.find(map_id);
         if (it == map_players_.end()) return;
         
-        const model::Map* map = nullptr;
-        for (const auto& m : game.GetMaps()) {
-            if (GetStringFromTagged(m.GetId()) == map_id) {
-                map = &m;
-                break;
-            }
-        }
-        if (!map) return;
-        
         for (auto& [id, player] : it->second) {
-            UpdatePlayerPosition(player, time_delta, *map);
+            const auto& speed = player->GetSpeed();
+            if (speed.vx == 0 && speed.vy == 0) continue;
+            
+            Point pos = player->GetPos();
+            pos.x += speed.vx * time_delta;
+            pos.y += speed.vy * time_delta;
+            player->SetPos(pos);
         }
     }
 
@@ -95,70 +91,6 @@ private:
         } else {
             return {static_cast<double>(start.x), static_cast<double>(start.y + 0.5)};
         }
-    }
-    
-    void UpdatePlayerPosition(std::shared_ptr<Player> player, double time_delta, const model::Map& map) {
-        const auto& speed = player->GetSpeed();
-        if (speed.vx == 0 && speed.vy == 0) return;
-        
-        Point pos = player->GetPos();
-        double new_x = pos.x + speed.vx * time_delta;
-        double new_y = pos.y + speed.vy * time_delta;
-        
-        // Find the road the player is on
-        const model::Road* current_road = nullptr;
-        for (const auto& road : map.GetRoads()) {
-            auto start = road.GetStart();
-            auto end = road.GetEnd();
-            
-            if (road.IsHorizontal()) {
-                if (std::abs(new_y - start.y) < 0.5 &&
-                    new_x >= std::min(start.x, end.x) - 0.5 && 
-                    new_x <= std::max(start.x, end.x) + 0.5) {
-                    current_road = &road;
-                    break;
-                }
-            } else {
-                if (std::abs(new_x - start.x) < 0.5 &&
-                    new_y >= std::min(start.y, end.y) - 0.5 && 
-                    new_y <= std::max(start.y, end.y) + 0.5) {
-                    current_road = &road;
-                    break;
-                }
-            }
-        }
-        
-        if (!current_road) {
-            player->SetSpeed(0, 0);
-            return;
-        }
-        
-        auto start = current_road->GetStart();
-        auto end = current_road->GetEnd();
-        
-        if (current_road->IsHorizontal()) {
-            double min_x = std::min(start.x, end.x) - 0.4;
-            double max_x = std::max(start.x, end.x) + 0.4;
-            
-            if (new_x < min_x) new_x = min_x;
-            if (new_x > max_x) new_x = max_x;
-            
-            if ((speed.vx > 0 && new_x >= max_x) || (speed.vx < 0 && new_x <= min_x)) {
-                player->SetSpeed(0, 0);
-            }
-        } else {
-            double min_y = std::min(start.y, end.y) - 0.4;
-            double max_y = std::max(start.y, end.y) + 0.4;
-            
-            if (new_y < min_y) new_y = min_y;
-            if (new_y > max_y) new_y = max_y;
-            
-            if ((speed.vy > 0 && new_y >= max_y) || (speed.vy < 0 && new_y <= min_y)) {
-                player->SetSpeed(0, 0);
-            }
-        }
-        
-        player->SetPos({new_x, new_y});
     }
 
     int next_id_ = 0;
