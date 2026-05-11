@@ -105,8 +105,8 @@ private:
         double new_x = pos.x + speed.vx * time_delta;
         double new_y = pos.y + speed.vy * time_delta;
         
-        // Находим дорогу и ограничиваем движение
         bool at_boundary = false;
+        
         for (const auto& road : map.GetRoads()) {
             auto start = road.GetStart();
             auto end = road.GetEnd();
@@ -144,7 +144,6 @@ private:
             }
         }
         
-        // Если достигли границы, останавливаем
         if (at_boundary) {
             player->SetSpeed(0, 0);
         }
