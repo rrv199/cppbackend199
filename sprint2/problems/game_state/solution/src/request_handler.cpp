@@ -19,10 +19,12 @@ namespace fs = std::filesystem;
 namespace http_handler {
 
 bool IsValidToken(const std::string& token) {
+    // Токен должен быть ровно 32 hex-символа
     if (token.length() != 32) return false;
-    return std::all_of(token.begin(), token.end(), [](char c) {
-        return std::isxdigit(static_cast<unsigned char>(c));
-    });
+    for (char c : token) {
+        if (!std::isxdigit(static_cast<unsigned char>(c))) return false;
+    }
+    return true;
 }
 
 std::string UrlDecode(std::string_view encoded) {
@@ -286,6 +288,7 @@ void RequestHandler::operator()(StringRequest&& req, std::function<void(StringRe
                 }
                 
                 token = auth.substr(7);
+                // Проверяем формат токена ДО вызова HandleGameState
                 if (!IsValidToken(token)) {
                     auto response = MakeJsonResponse(http::status::unauthorized,
                         json::serialize(json::object{{"code", "invalidToken"}, {"message", "Invalid token format"}}),
@@ -344,6 +347,7 @@ void RequestHandler::operator()(StringRequest&& req, std::function<void(StringRe
                 }
                 
                 token = auth.substr(7);
+                // Проверяем формат токена ДО вызова HandlePlayers
                 if (!IsValidToken(token)) {
                     auto response = MakeJsonResponse(http::status::unauthorized,
                         json::serialize(json::object{{"code", "invalidToken"}, {"message", "Invalid token format"}}),
