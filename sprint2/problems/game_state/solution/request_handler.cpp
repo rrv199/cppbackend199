@@ -69,6 +69,7 @@ StringResponse MakeStringResponse(http::status status, std::string_view body, un
 StringResponse MakeJsonResponse(http::status status, const std::string& body, unsigned http_version, bool keep_alive) {
     StringResponse response(status, http_version);
     response.set(http::field::content_type, "application/json");
+    response.set(http::field::cache_control, "no-cache");
     response.body() = body;
     response.content_length(body.size());
     response.keep_alive(keep_alive);
