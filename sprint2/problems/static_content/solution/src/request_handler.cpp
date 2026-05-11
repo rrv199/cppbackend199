@@ -98,17 +98,64 @@ std::string SerializeMaps(const model::Game& game) {
     return json::serialize(maps_array);
 }
 
-std::string SerializeMap(const model::Map& map) {
+std::string SerializeFullMap(const model::Map& map) {
     json::object result;
     result["id"] = GetStringFromTagged(map.GetId());
     result["name"] = map.GetName();
+    
+    // Roads
+    json::array roads_array;
+    for (const auto& road : map.GetRoads()) {
+        json::object road_obj;
+        auto start = road.GetStart();
+        auto end = road.GetEnd();
+        if (road.IsHorizontal()) {
+            road_obj["x0"] = start.x;
+            road_obj["y0"] = start.y;
+            road_obj["x1"] = end.x;
+        } else {
+            road_obj["x0"] = start.x;
+            road_obj["y0"] = start.y;
+            road_obj["y1"] = end.y;
+        }
+        roads_array.push_back(road_obj);
+    }
+    result["roads"] = roads_array;
+    
+    // Buildings
+    json::array buildings_array;
+    for (const auto& building : map.GetBuildings()) {
+        json::object building_obj;
+        auto bounds = building.GetBounds();
+        building_obj["x"] = bounds.position.x;
+        building_obj["y"] = bounds.position.y;
+        building_obj["w"] = bounds.size.width;
+        building_obj["h"] = bounds.size.height;
+        buildings_array.push_back(building_obj);
+    }
+    result["buildings"] = buildings_array;
+    
+    // Offices
+    json::array offices_array;
+    for (const auto& office : map.GetOffices()) {
+        json::object office_obj;
+        office_obj["id"] = GetStringFromTagged(office.GetId());
+        auto pos = office.GetPosition();
+        office_obj["x"] = pos.x;
+        office_obj["y"] = pos.y;
+        auto offset = office.GetOffset();
+        office_obj["offsetX"] = offset.dx;
+        office_obj["offsetY"] = offset.dy;
+        offices_array.push_back(office_obj);
+    }
+    result["offices"] = offices_array;
+    
     return json::serialize(result);
 }
 
 void RequestHandler::operator()(StringRequest&& req, std::function<void(StringResponse&&)> send) {
     std::string target(req.target());
     
-    // Нормализуем target — убираем ведущий / если есть
     if (!target.empty() && target[0] == '/') {
         target = target.substr(1);
     }
@@ -121,34 +168,28 @@ void RequestHandler::operator()(StringRequest&& req, std::function<void(StringRe
         if (req.method() != http::verb::get) {
             body = json::serialize(json::object{{"code", "badRequest"}, {"message", "Bad request"}});
             status = http::status::bad_request;
-        } else {
-            // Список карт
-            if (target == "api/v1/maps") {
-                body = SerializeMaps(game_);
+        } else if (target == "api/v1/maps") {
+            body = SerializeMaps(game_);
+            status = http::status::ok;
+        } else if (target.find("api/v1/maps/") == 0) {
+            std::string map_id = target.substr(14);
+            const model::Map* found = nullptr;
+            for (const auto& map : game_.GetMaps()) {
+                if (GetStringFromTagged(map.GetId()) == map_id) {
+                    found = &map;
+                    break;
+                }
+            }
+            if (found) {
+                body = SerializeFullMap(*found);
                 status = http::status::ok;
+            } else {
+                body = json::serialize(json::object{{"code", "mapNotFound"}, {"message", "Map not found"}});
+                status = http::status::not_found;
             }
-            // Информация о карте
-            else if (target.find("api/v1/maps/") == 0) {
-                std::string map_id = target.substr(14);
-                const model::Map* found = nullptr;
-                for (const auto& map : game_.GetMaps()) {
-                    if (GetStringFromTagged(map.GetId()) == map_id) {
-                        found = &map;
-                        break;
-                    }
-                }
-                if (found) {
-                    body = SerializeMap(*found);
-                    status = http::status::ok;
-                } else {
-                    body = json::serialize(json::object{{"code", "mapNotFound"}, {"message", "Map not found"}});
-                    status = http::status::not_found;
-                }
-            }
-            else {
-                body = json::serialize(json::object{{"code", "badRequest"}, {"message", "Bad request"}});
-                status = http::status::bad_request;
-            }
+        } else {
+            body = json::serialize(json::object{{"code", "badRequest"}, {"message", "Bad request"}});
+            status = http::status::bad_request;
         }
         
         StringResponse response(status, req.version());
