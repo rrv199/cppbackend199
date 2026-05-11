@@ -126,11 +126,12 @@ std::string SerializeFullMap(const model::Map& map) {
     json::array buildings_array;
     for (const auto& building : map.GetBuildings()) {
         json::object building_obj;
-        auto bounds = building.GetBounds();
-        building_obj["x"] = bounds.position.x;
-        building_obj["y"] = bounds.position.y;
-        building_obj["w"] = bounds.size.width;
-        building_obj["h"] = bounds.size.height;
+        auto pos = building.GetPosition();
+        auto size = building.GetSize();
+        building_obj["x"] = pos.x;
+        building_obj["y"] = pos.y;
+        building_obj["w"] = size.width;
+        building_obj["h"] = size.height;
         buildings_array.push_back(building_obj);
     }
     result["buildings"] = buildings_array;
@@ -144,8 +145,8 @@ std::string SerializeFullMap(const model::Map& map) {
         office_obj["x"] = pos.x;
         office_obj["y"] = pos.y;
         auto offset = office.GetOffset();
-        office_obj["offsetX"] = offset.dx;
-        office_obj["offsetY"] = offset.dy;
+        office_obj["offsetX"] = offset.x;
+        office_obj["offsetY"] = offset.y;
         offices_array.push_back(office_obj);
     }
     result["offices"] = offices_array;
