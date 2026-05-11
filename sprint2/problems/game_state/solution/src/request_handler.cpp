@@ -10,12 +10,20 @@
 #include <chrono>
 #include <random>
 #include <iomanip>
+#include <algorithm>
 
 namespace json = boost::json;
 using namespace http_server;
 namespace fs = std::filesystem;
 
 namespace http_handler {
+
+bool IsValidToken(const std::string& token) {
+    if (token.length() != 32) return false;
+    return std::all_of(token.begin(), token.end(), [](char c) {
+        return std::isxdigit(static_cast<unsigned char>(c));
+    });
+}
 
 std::string UrlDecode(std::string_view encoded) {
     std::string result;
@@ -278,7 +286,7 @@ void RequestHandler::operator()(StringRequest&& req, std::function<void(StringRe
                 }
                 
                 token = auth.substr(7);
-                if (token.empty() || token.length() != 32) {
+                if (!IsValidToken(token)) {
                     auto response = MakeJsonResponse(http::status::unauthorized,
                         json::serialize(json::object{{"code", "invalidToken"}, {"message", "Invalid token format"}}),
                         11, true);
@@ -336,7 +344,7 @@ void RequestHandler::operator()(StringRequest&& req, std::function<void(StringRe
                 }
                 
                 token = auth.substr(7);
-                if (token.empty() || token.length() != 32) {
+                if (!IsValidToken(token)) {
                     auto response = MakeJsonResponse(http::status::unauthorized,
                         json::serialize(json::object{{"code", "invalidToken"}, {"message", "Invalid token format"}}),
                         11, true);
