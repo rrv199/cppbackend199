@@ -18,15 +18,6 @@ namespace fs = std::filesystem;
 
 namespace http_handler {
 
-bool IsValidToken(const std::string& token) {
-    // Токен должен быть ровно 32 hex-символа
-    if (token.length() != 32) return false;
-    for (char c : token) {
-        if (!std::isxdigit(static_cast<unsigned char>(c))) return false;
-    }
-    return true;
-}
-
 std::string UrlDecode(std::string_view encoded) {
     std::string result;
     result.reserve(encoded.size());
@@ -288,13 +279,23 @@ void RequestHandler::operator()(StringRequest&& req, std::function<void(StringRe
                 }
                 
                 token = auth.substr(7);
-                // Проверяем формат токена ДО вызова HandleGameState
-                if (!IsValidToken(token)) {
+                // Проверяем длину токена (должна быть 32)
+                if (token.length() != 32) {
                     auto response = MakeJsonResponse(http::status::unauthorized,
-                        json::serialize(json::object{{"code", "invalidToken"}, {"message", "Invalid token format"}}),
+                        json::serialize(json::object{{"code", "invalidToken"}, {"message", "Invalid token length"}}),
                         11, true);
                     send(std::move(response));
                     return;
+                }
+                // Проверяем, что все символы - hex
+                for (char c : token) {
+                    if (!std::isxdigit(static_cast<unsigned char>(c))) {
+                        auto response = MakeJsonResponse(http::status::unauthorized,
+                            json::serialize(json::object{{"code", "invalidToken"}, {"message", "Invalid token characters"}}),
+                            11, true);
+                        send(std::move(response));
+                        return;
+                    }
                 }
                 
                 auto response = HandleGameState(token);
@@ -347,13 +348,23 @@ void RequestHandler::operator()(StringRequest&& req, std::function<void(StringRe
                 }
                 
                 token = auth.substr(7);
-                // Проверяем формат токена ДО вызова HandlePlayers
-                if (!IsValidToken(token)) {
+                // Проверяем длину токена (должна быть 32)
+                if (token.length() != 32) {
                     auto response = MakeJsonResponse(http::status::unauthorized,
-                        json::serialize(json::object{{"code", "invalidToken"}, {"message", "Invalid token format"}}),
+                        json::serialize(json::object{{"code", "invalidToken"}, {"message", "Invalid token length"}}),
                         11, true);
                     send(std::move(response));
                     return;
+                }
+                // Проверяем, что все символы - hex
+                for (char c : token) {
+                    if (!std::isxdigit(static_cast<unsigned char>(c))) {
+                        auto response = MakeJsonResponse(http::status::unauthorized,
+                            json::serialize(json::object{{"code", "invalidToken"}, {"message", "Invalid token characters"}}),
+                            11, true);
+                        send(std::move(response));
+                        return;
+                    }
                 }
                 
                 auto response = HandlePlayers(token);
