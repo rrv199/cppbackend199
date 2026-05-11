@@ -158,18 +158,22 @@ std::string SerializeFullMap(const model::Map& map) {
 StringResponse HandleJoinGame(const json::value& body, const model::Game& game) {
     try {
         auto obj = body.as_object();
+        
         if (!obj.contains("userName") || !obj.contains("mapId")) {
             return MakeJsonResponse(http::status::bad_request,
                 json::serialize(json::object{{"code", "invalidArgument"}, {"message", "Missing required fields"}}),
                 11, true);
         }
+        
         std::string user_name = json::value_to<std::string>(obj.at("userName"));
         std::string map_id = json::value_to<std::string>(obj.at("mapId"));
+        
         if (user_name.empty()) {
             return MakeJsonResponse(http::status::bad_request,
                 json::serialize(json::object{{"code", "invalidArgument"}, {"message", "Invalid name"}}),
                 11, true);
         }
+        
         bool map_found = false;
         for (const auto& map : game.GetMaps()) {
             if (GetStringFromTagged(map.GetId()) == map_id) {
@@ -177,15 +181,19 @@ StringResponse HandleJoinGame(const json::value& body, const model::Game& game) 
                 break;
             }
         }
+        
         if (!map_found) {
             return MakeJsonResponse(http::status::not_found,
                 json::serialize(json::object{{"code", "mapNotFound"}, {"message", "Map not found"}}),
                 11, true);
         }
+        
         auto [player_id, token] = PlayerManager::Instance().CreatePlayer(user_name, map_id, game);
+        
         json::object result;
         result["authToken"] = token;
         result["playerId"] = player_id;
+        
         return MakeJsonResponse(http::status::ok, json::serialize(result), 11, true);
     } catch (const std::exception& e) {
         return MakeJsonResponse(http::status::bad_request,
@@ -201,11 +209,14 @@ StringResponse HandlePlayers(const std::string& token) {
             json::serialize(json::object{{"code", "unknownToken"}, {"message", "Player token has not been found"}}),
             11, true);
     }
+    
     auto players = PlayerManager::Instance().GetPlayersOnMap(player->GetMapId());
+    
     json::object result;
     for (const auto& [id, p] : players) {
         result[std::to_string(id)] = {{"name", p->GetName()}};
     }
+    
     return MakeJsonResponse(http::status::ok, json::serialize(result), 11, true);
 }
 
@@ -216,7 +227,9 @@ StringResponse HandleGameState(const std::string& token) {
             json::serialize(json::object{{"code", "unknownToken"}, {"message", "Player token has not been found"}}),
             11, true);
     }
+    
     auto players = PlayerManager::Instance().GetPlayersOnMap(player->GetMapId());
+    
     json::object players_obj;
     for (const auto& [id, p] : players) {
         json::object player_data;
@@ -225,14 +238,17 @@ StringResponse HandleGameState(const std::string& token) {
         player_data["dir"] = DirectionToString(p->GetDir());
         players_obj[std::to_string(id)] = player_data;
     }
+    
     json::object result;
     result["players"] = players_obj;
+    
     return MakeJsonResponse(http::status::ok, json::serialize(result), 11, true);
 }
 
 void RequestHandler::operator()(StringRequest&& req, std::function<void(StringResponse&&)> send) {
     std::string raw_target(req.target());
     std::string target = raw_target;
+    
     if (!target.empty() && target[0] == '/') {
         target = target.substr(1);
     }
@@ -251,6 +267,7 @@ void RequestHandler::operator()(StringRequest&& req, std::function<void(StringRe
                     send(std::move(response));
                     return;
                 }
+                
                 std::string auth = std::string(auth_it->value());
                 if (auth.find("Bearer ") != 0) {
                     auto response = MakeJsonResponse(http::status::unauthorized,
@@ -259,14 +276,16 @@ void RequestHandler::operator()(StringRequest&& req, std::function<void(StringRe
                     send(std::move(response));
                     return;
                 }
+                
                 token = auth.substr(7);
-                if (token.empty()) {
+                if (token.empty() || token.length() != 32) {
                     auto response = MakeJsonResponse(http::status::unauthorized,
-                        json::serialize(json::object{{"code", "invalidToken"}, {"message", "Token is empty"}}),
+                        json::serialize(json::object{{"code", "invalidToken"}, {"message", "Invalid token format"}}),
                         11, true);
                     send(std::move(response));
                     return;
                 }
+                
                 auto response = HandleGameState(token);
                 send(std::move(response));
                 return;
@@ -306,6 +325,7 @@ void RequestHandler::operator()(StringRequest&& req, std::function<void(StringRe
                     send(std::move(response));
                     return;
                 }
+                
                 std::string auth = std::string(auth_it->value());
                 if (auth.find("Bearer ") != 0) {
                     auto response = MakeJsonResponse(http::status::unauthorized,
@@ -314,14 +334,16 @@ void RequestHandler::operator()(StringRequest&& req, std::function<void(StringRe
                     send(std::move(response));
                     return;
                 }
+                
                 token = auth.substr(7);
-                if (token.empty()) {
+                if (token.empty() || token.length() != 32) {
                     auto response = MakeJsonResponse(http::status::unauthorized,
-                        json::serialize(json::object{{"code", "invalidToken"}, {"message", "Token is empty"}}),
+                        json::serialize(json::object{{"code", "invalidToken"}, {"message", "Invalid token format"}}),
                         11, true);
                     send(std::move(response));
                     return;
                 }
+                
                 auto response = HandlePlayers(token);
                 send(std::move(response));
                 return;
@@ -399,26 +421,34 @@ void RequestHandler::operator()(StringRequest&& req, std::function<void(StringRe
         if (decoded.empty()) {
             decoded = "index.html";
         }
+        
         fs::path file_path = static_root_ / decoded;
         fs::path canonical_path = fs::weakly_canonical(file_path);
         fs::path abs_static_root = fs::weakly_canonical(static_root_);
+        
         if (canonical_path.string().find(abs_static_root.string()) != 0) {
             send(MakeStringResponse(http::status::bad_request, "Bad Request", req.version(), req.keep_alive()));
             return;
         }
+        
         if (fs::is_directory(canonical_path)) {
             canonical_path /= "index.html";
         }
+        
         if (!fs::exists(canonical_path) || !fs::is_regular_file(canonical_path)) {
             send(MakeStringResponse(http::status::not_found, "Not Found", req.version(), req.keep_alive()));
             return;
         }
+        
         std::string mime_type = GetMimeType(canonical_path.string());
         StringResponse response = MakeFileResponse(canonical_path, mime_type, req.version(), req.keep_alive());
+        
         if (req.method() == http::verb::head) {
             response.body() = "";
         }
+        
         send(std::move(response));
+        
     } catch (const std::exception& e) {
         send(MakeStringResponse(http::status::internal_server_error, "Internal Error", req.version(), req.keep_alive()));
     }
