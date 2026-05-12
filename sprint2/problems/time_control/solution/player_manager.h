@@ -87,7 +87,6 @@ private:
         const auto& roads = map.GetRoads();
         if (roads.empty()) return {0.0, 0.0};
         
-        // Ищем первую дорогу (как в Python тестах)
         const auto& road = roads[0];
         auto start = road.GetStart();
         auto end = road.GetEnd();
@@ -96,7 +95,6 @@ private:
             double mid_x = (start.x + end.x) / 2.0;
             return {mid_x, static_cast<double>(start.y)};
         } else {
-            // Для вертикальной дороги - посередине
             double mid_y = (start.y + end.y) / 2.0;
             return {static_cast<double>(start.x), mid_y};
         }
@@ -110,30 +108,47 @@ private:
         double new_x = pos.x + speed.vx * time_delta;
         double new_y = pos.y + speed.vy * time_delta;
         
-        // Находим дорогу для этого игрока (упрощенно: используем первую подходящую дорогу)
+        bool at_boundary = false;
+        
         for (const auto& road : map.GetRoads()) {
             auto start = road.GetStart();
             auto end = road.GetEnd();
             
             if (road.IsHorizontal()) {
-                // Горизонтальная дорога: у игрока y должен быть близок к y дороги
                 if (std::abs(pos.y - start.y) < 0.5) {
                     double min_x = std::min(start.x, end.x) - 0.4;
                     double max_x = std::max(start.x, end.x) + 0.4;
-                    new_x = std::clamp(new_x, min_x, max_x);
+                    
+                    if (new_x <= min_x) {
+                        new_x = min_x;
+                        at_boundary = true;
+                    } else if (new_x >= max_x) {
+                        new_x = max_x;
+                        at_boundary = true;
+                    }
                     new_y = static_cast<double>(start.y);
                     break;
                 }
             } else {
-                // Вертикальная дорога: у игрока x должен быть близок к x дороги
                 if (std::abs(pos.x - start.x) < 0.5) {
                     double min_y = std::min(start.y, end.y) - 0.4;
                     double max_y = std::max(start.y, end.y) + 0.4;
-                    new_y = std::clamp(new_y, min_y, max_y);
+                    
+                    if (new_y <= min_y) {
+                        new_y = min_y;
+                        at_boundary = true;
+                    } else if (new_y >= max_y) {
+                        new_y = max_y;
+                        at_boundary = true;
+                    }
                     new_x = static_cast<double>(start.x);
                     break;
                 }
             }
+        }
+        
+        if (at_boundary) {
+            player->SetSpeed(0, 0);
         }
         
         player->SetPos({new_x, new_y});
