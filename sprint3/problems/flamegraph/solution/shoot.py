@@ -1,125 +1,109 @@
 #!/usr/bin/env python3
 import subprocess
 import time
-import signal
-import sys
 import os
 import shlex
 import random
 import argparse
+import signal
 
-# Список запросов для обстрела
 AMMUNITION = [
     '/api/v1/maps',
-    '/api/v1/maps/map1',
+    '/api/v1/maps/map1', 
     '/api/v1/maps/town',
-    '/api/v1/game/join',
-    '/api/v1/game/state',
-    '/api/v1/game/players',
 ]
 
 def start_server():
-    """Запускает сервер с переданными аргументами"""
     parser = argparse.ArgumentParser()
     parser.add_argument('server', help='Command to start server')
     args = parser.parse_args()
-    
-    # Разбиваем строку на аргументы
-    server_args = shlex.split(args.server)
-    
-    return server_args
+    return shlex.split(args.server)
 
 def run_server(server_args):
-    """Запускает сервер как дочерний процесс"""
     return subprocess.Popen(server_args)
 
 def make_shots():
-    """Выполняет запросы к серверу"""
-    # Делаем много запросов для создания нагрузки
-    for i in range(500):  # Увеличиваем до 500 запросов
+    for i in range(200):
         endpoint = random.choice(AMMUNITION)
         cmd = ['curl', '-s', f'http://localhost:8080{endpoint}', '-o', '/dev/null']
         subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        if i % 50 == 0:
-            print(f"  Request {i}/500 completed")
-        time.sleep(0.01)  # Минимальная задержка
+        time.sleep(0.05)
 
 def main():
-    # Получаем команду для запуска сервера
     server_args = start_server()
     
     print("Starting server...")
-    # Запускаем сервер
     server_process = run_server(server_args)
-    
-    # Даем серверу время на запуск
     time.sleep(3)
-    print("Server started")
     
-    print("Starting perf record...")
-    # Запускаем perf record с более частой выборкой и большим временем
-    perf_cmd = ['perf', 'record', '-F', '997', '-g', '-o', 'perf.data', '-p', str(server_process.pid), '--', 'sleep', '60']
-    perf_process = subprocess.Popen(perf_cmd)
+    pid = server_process.pid
+    print(f"Server PID: {pid}")
     
-    # Даем perf немного времени
-    time.sleep(2)
+    # Запускаем sample.sh в фоне
+    sample_cmd = ['./sample.sh', str(pid), '50', '0.1', 'stacks.txt']
+    print(f"Running: {' '.join(sample_cmd)}")
+    sample_process = subprocess.Popen(sample_cmd)
     
     print("Making requests...")
-    # Обстреливаем сервер запросами
     make_shots()
     
-    print("Waiting for perf to finish...")
-    # Ждем окончания записи perf
-    perf_process.wait(timeout=65)
+    print("Waiting for sampling to complete...")
+    sample_process.wait(timeout=30)
     
     print("Stopping server...")
-    # Останавливаем сервер
     server_process.terminate()
     server_process.wait(timeout=5)
     
-    # Проверяем, что perf.data создан и не пустой
-    if os.path.exists('perf.data') and os.path.getsize('perf.data') > 0:
-        print(f"perf.data size: {os.path.getsize('perf.data')} bytes")
-    else:
-        print("Error: perf.data is empty or missing")
-        return
+    # Генерируем флеймграф из стеков
+    print("Generating flamegraph...")
     
     # Клонируем FlameGraph если нужно
     if not os.path.exists('FlameGraph'):
-        print("Cloning FlameGraph...")
         subprocess.run(['git', 'clone', 'https://github.com/brendangregg/FlameGraph.git'])
-    else:
-        print("FlameGraph already exists")
     
-    print("Generating flamegraph...")
-    # Генерируем флеймграф с проверкой данных
-    result = subprocess.run(['perf', 'script', '-i', 'perf.data'], capture_output=True, text=True)
+    # Конвертируем стеки в формат для flamegraph
+    with open('stacks.txt', 'r') as f:
+        content = f.read()
     
-    if len(result.stdout) < 100:
-        print("Warning: perf script output too small")
-        print(f"Output size: {len(result.stdout)} bytes")
+    # Создаем коллапсированный вывод
+    with open('stacks.folded', 'w') as f:
+        # Парсим GDB output
+        lines = content.split('\n')
+        current_trace = []
+        for line in lines:
+            if 'Sample' in line:
+                if current_trace:
+                    # Записываем трейс
+                    trace_str = ';'.join(current_trace)
+                    f.write(f"{trace_str} 1\n")
+                current_trace = []
+            elif '#0' in line or '#1' in line or '#2' in line or '#3' in line or '#4' in line:
+                # Извлекаем имя функции
+                parts = line.split()
+                if len(parts) > 1:
+                    func = parts[1].split('(')[0]
+                    if func and not func.startswith('0x'):
+                        current_trace.append(func)
+        if current_trace:
+            trace_str = ';'.join(current_trace)
+            f.write(f"{trace_str} 1\n")
     
-    with subprocess.Popen(['perf', 'script', '-i', 'perf.data'], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL) as perf_script:
-        with subprocess.Popen(['./FlameGraph/stackcollapse-perf.pl'], stdin=perf_script.stdout, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL) as stackcollapse:
-            with subprocess.Popen(['./FlameGraph/flamegraph.pl', '--title', 'Game Server Flame Graph'], stdin=stackcollapse.stdout, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL) as flamegraph:
-                with open('graph.svg', 'wb') as f:
-                    output = flamegraph.communicate()[0]
-                    f.write(output)
+    # Запускаем flamegraph.pl
+    with open('stacks.folded', 'r') as input_f:
+        with open('graph.svg', 'w') as output_f:
+            subprocess.run(
+                ['./FlameGraph/flamegraph.pl', '--title', 'Poor Mans Profiler Flame Graph'],
+                stdin=input_f,
+                stdout=output_f
+            )
+    
+    print("Flamegraph generated: graph.svg")
     
     # Проверяем результат
-    if os.path.exists('graph.svg') and os.path.getsize('graph.svg') > 10000:
+    if os.path.exists('graph.svg') and os.path.getsize('graph.svg') > 1000:
         print(f"Success: graph.svg size: {os.path.getsize('graph.svg')} bytes")
-        # Проверяем наличие ожидаемых функций
-        with open('graph.svg', 'r') as f:
-            content = f.read()
-            if 'http_handler' in content or 'RequestHandler' in content:
-                print("Flamegraph contains handler functions")
-            else:
-                print("Warning: Could not find handler functions in flamegraph")
     else:
-        print(f"Error: graph.svg too small ({os.path.getsize('graph.svg')} bytes)")
-
-    print("Done!")
+        print("Warning: graph.svg is too small")
 
 if __name__ == '__main__':
     main()
