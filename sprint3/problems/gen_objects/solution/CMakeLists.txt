@@ -7,22 +7,27 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 add_compile_definitions(BOOST_BEAST_USE_STD_STRING_VIEW)
 add_compile_definitions(BOOST_JSON_HEADER_ONLY)
 
-find_package(Boost REQUIRED)
+# Включаем сгенерированный conan файл
+include(${CMAKE_BINARY_DIR}/conanbuildinfo.cmake)
+conan_basic_setup()
 
-# Основной сервер
+find_package(Boost REQUIRED COMPONENTS system)
+
 set(SOURCES
     main.cpp
     http_server.cpp
     json_loader.cpp
     request_handler.cpp
     boost_json.cpp
+    loot_generator.cpp
 )
 
 add_executable(game_server ${SOURCES})
-target_include_directories(game_server PRIVATE .)
-target_link_libraries(game_server ${Boost_LIBRARIES} pthread)
 
-# Тесты для генератора лута (header-only Catch2)
+target_include_directories(game_server PRIVATE .)
+target_link_libraries(game_server ${Boost_LIBRARIES} ${CONAN_LIBS} pthread)
+
+# Тесты
 add_executable(game_server_tests
     tests/loot_generator_tests.cpp
     loot_generator.cpp
