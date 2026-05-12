@@ -7,13 +7,14 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 add_compile_definitions(BOOST_BEAST_USE_STD_STRING_VIEW)
 add_compile_definitions(BOOST_JSON_HEADER_ONLY)
 
-find_package(Boost REQUIRED COMPONENTS program_options)
+find_package(Boost REQUIRED)
 
 set(SOURCES
     main.cpp
     http_server.cpp
     json_loader.cpp
     request_handler.cpp
+    tick_mode.cpp
     boost_json.cpp
 )
 

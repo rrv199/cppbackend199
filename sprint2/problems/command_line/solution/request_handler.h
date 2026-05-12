@@ -5,6 +5,8 @@
 #include <functional>
 
 namespace http_handler {
+void SetTickPeriodMode(bool enabled);
+void SetTickPeriodMode(bool enabled);
 
 class RequestHandler {
 public:
@@ -28,3 +30,9 @@ private:
 };
 
 } // namespace http_handler
+
+void SetTickPeriodMode(bool enabled);
+
+void SetTickPeriodMode(bool enabled);
+
+void SetTickPeriodMode(bool enabled);

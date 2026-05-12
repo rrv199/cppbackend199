@@ -3,8 +3,8 @@
 #include <filesystem>
 #include <thread>
 #include <chrono>
+#include <cstring>
 #include <boost/asio/signal_set.hpp>
-#include <boost/program_options.hpp>
 #include "http_server.h"
 #include "request_handler.h"
 #include "json_loader.h"
@@ -17,7 +17,65 @@ namespace fs = std::filesystem;
 // Глобальная переменная для режима генерации позиций
 bool g_randomize_spawn_points = false;
 
-namespace {
+struct ProgramOptions {
+    std::string config_file;
+    std::string www_root;
+    int tick_period = -1;
+    bool randomize_spawn_points = false;
+    bool help = false;
+};
+
+void PrintHelp() {
+    std::cout << "Allowed options:" << std::endl;
+    std::cout << "  -h [ --help ]                     produce help message" << std::endl;
+    std::cout << "  -t [ --tick-period ] milliseconds set tick period" << std::endl;
+    std::cout << "  -c [ --config-file ] file         set config file path" << std::endl;
+    std::cout << "  -w [ --www-root ] dir             set static files root" << std::endl;
+    std::cout << "  --randomize-spawn-points          spawn dogs at random positions" << std::endl;
+}
+
+ProgramOptions ParseCommandLine(int argc, char* argv[]) {
+    ProgramOptions opts;
+    
+    for (int i = 1; i < argc; ++i) {
+        if (strcmp(argv[i], "-h") == 0 || strcmp(argv[i], "--help") == 0) {
+            opts.help = true;
+            return opts;
+        } else if (strcmp(argv[i], "-t") == 0 || strcmp(argv[i], "--tick-period") == 0) {
+            if (i + 1 < argc) {
+                opts.tick_period = std::atoi(argv[++i]);
+                if (opts.tick_period <= 0) {
+                    throw std::runtime_error("Tick period must be positive");
+                }
+            } else {
+                throw std::runtime_error("Missing value for tick-period");
+            }
+        } else if (strcmp(argv[i], "-c") == 0 || strcmp(argv[i], "--config-file") == 0) {
+            if (i + 1 < argc) {
+                opts.config_file = argv[++i];
+            } else {
+                throw std::runtime_error("Missing value for config-file");
+            }
+        } else if (strcmp(argv[i], "-w") == 0 || strcmp(argv[i], "--www-root") == 0) {
+            if (i + 1 < argc) {
+                opts.www_root = argv[++i];
+            } else {
+                throw std::runtime_error("Missing value for www-root");
+            }
+        } else if (strcmp(argv[i], "--randomize-spawn-points") == 0) {
+            opts.randomize_spawn_points = true;
+        }
+    }
+    
+    if (opts.config_file.empty()) {
+        throw std::runtime_error("Config file is required");
+    }
+    if (opts.www_root.empty()) {
+        throw std::runtime_error("www-root is required");
+    }
+    
+    return opts;
+}
 
 // Ticker class for periodic updates
 class Ticker : public std::enable_shared_from_this<Ticker> {
@@ -69,113 +127,48 @@ private:
     std::chrono::steady_clock::time_point last_tick_;
 };
 
-struct ProgramOptions {
-    std::string config_file;
-    std::string www_root;
-    std::optional<int> tick_period;
-    bool randomize_spawn_points = false;
-    bool help = false;
-};
-
-ProgramOptions ParseCommandLine(int argc, char* argv[]) {
-    namespace po = boost::program_options;
-    
-    ProgramOptions opts;
-    
-    po::options_description desc("Allowed options");
-    desc.add_options()
-        ("help,h", "produce help message")
-        ("tick-period,t", po::value<int>(), "set tick period in milliseconds")
-        ("config-file,c", po::value<std::string>(), "set config file path")
-        ("www-root,w", po::value<std::string>(), "set static files root")
-        ("randomize-spawn-points", "spawn dogs at random positions");
-    
-    po::variables_map vm;
-    po::store(po::parse_command_line(argc, argv, desc), vm);
-    po::notify(vm);
-    
-    if (vm.count("help")) {
-        opts.help = true;
-        std::cout << desc << std::endl;
-        return opts;
-    }
-    
-    if (vm.count("config-file")) {
-        opts.config_file = vm["config-file"].as<std::string>();
-    } else {
-        throw std::runtime_error("Config file is required");
-    }
-    
-    if (vm.count("www-root")) {
-        opts.www_root = vm["www-root"].as<std::string>();
-    } else {
-        throw std::runtime_error("www-root is required");
-    }
-    
-    if (vm.count("tick-period")) {
-        opts.tick_period = vm["tick-period"].as<int>();
-        if (opts.tick_period <= 0) {
-            throw std::runtime_error("Tick period must be positive");
-        }
-    }
-    
-    if (vm.count("randomize-spawn-points")) {
-        opts.randomize_spawn_points = true;
-    }
-    
-    return opts;
-}
-
-} // namespace
-
 int main(int argc, char* argv[]) {
     try {
-        // Parse command line
         auto opts = ParseCommandLine(argc, argv);
         
         if (opts.help) {
+            PrintHelp();
             return 0;
         }
         
-        // Set global randomize flag
         g_randomize_spawn_points = opts.randomize_spawn_points;
         
-        // Load game config
         model::Game game = json_loader::LoadGame(opts.config_file);
-        
-        // Initialize request handler with options
         http_handler::RequestHandler handler(game, opts.www_root);
+        http_handler::SetTickPeriodMode(opts.tick_period > 0);
+        http_handler::SetTickPeriodMode(opts.tick_period > 0);
         
-        // Run server
         const unsigned num_threads = std::thread::hardware_concurrency();
         net::io_context ioc(num_threads);
         
         auto api_strand = net::make_strand(ioc);
         
-        // Setup ticker if tick period is specified
         std::shared_ptr<Ticker> ticker;
-        if (opts.tick_period.has_value()) {
+        if (opts.tick_period > 0) {
             ticker = std::make_shared<Ticker>(
                 api_strand,
-                std::chrono::milliseconds(*opts.tick_period),
+                std::chrono::milliseconds(opts.tick_period),
                 [&handler](std::chrono::milliseconds delta) {
                     double delta_sec = static_cast<double>(delta.count()) / 1000.0;
                     handler.Tick(delta_sec);
                 }
             );
             ticker->Start();
-            std::cout << "Server started with tick period: " << *opts.tick_period << " ms" << std::endl;
+            std::cout << "Server started with tick period: " << opts.tick_period << " ms" << std::endl;
         } else {
             std::cout << "Server started in test mode (tick via API)" << std::endl;
         }
         
-        // Setup signal handling
         boost::asio::signal_set signals(ioc, SIGINT, SIGTERM);
         signals.async_wait([&ioc](const sys::error_code&, int) {
             ioc.stop();
         });
         
-        // Serve HTTP
         const auto address = net::ip::make_address("0.0.0.0");
         constexpr net::ip::port_type port = 8080;
         http_server::ServeHttp(ioc, {address, port}, 

@@ -17,6 +17,8 @@ using namespace http_server;
 namespace fs = std::filesystem;
 
 namespace http_handler {
+extern bool g_has_tick_period;
+extern bool g_has_tick_period;
 
 std::string UrlDecode(std::string_view encoded) {
     std::string result;
@@ -310,6 +312,11 @@ StringResponse HandlePlayerAction(const json::value& body, const std::string& to
 }
 
 StringResponse HandleGameTick(const json::value& body, const model::Game& game) {
+    if (g_has_tick_period) {
+        return MakeJsonResponse(http::status::bad_request,
+            json::serialize(json::object{{"code", "badRequest"}, {"message", "Invalid endpoint"}}),
+            11, true);
+    }
     if (body.is_null()) {
         return MakeJsonResponse(http::status::bad_request,
             json::serialize(json::object{{"code", "invalidArgument"}, {"message", "Missing timeDelta field"}}),
@@ -639,20 +646,15 @@ void RequestHandler::operator()(StringRequest&& req, std::function<void(StringRe
     }
 }
 
+
+void RequestHandler::Tick(double time_delta) {
+    for (const auto& map : game_.GetMaps()) {
+        std::string map_id = GetStringFromTagged(map.GetId());
+        PlayerManager::Instance().UpdatePlayers(map_id, time_delta, game_);
+    }
+}
+
 } // namespace http_handler
 
-void RequestHandler::Tick(double time_delta) {
-    // Update all maps
-    for (const auto& map : game_.GetMaps()) {
-        std::string map_id = GetStringFromTagged(map.GetId());
-        PlayerManager::Instance().UpdatePlayers(map_id, time_delta, game_);
-    }
-}
 
-void RequestHandler::Tick(double time_delta) {
-    // Update all maps
-    for (const auto& map : game_.GetMaps()) {
-        std::string map_id = GetStringFromTagged(map.GetId());
-        PlayerManager::Instance().UpdatePlayers(map_id, time_delta, game_);
-    }
-}
+
