@@ -1,3 +1,5 @@
-getNode
-getNode
-addEdge
+{
+  "version0": "getNode",
+  "version1": "getNode",
+  "version2": "addEdge"
+}
