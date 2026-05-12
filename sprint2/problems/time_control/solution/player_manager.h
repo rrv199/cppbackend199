@@ -87,7 +87,7 @@ private:
         const auto& roads = map.GetRoads();
         if (roads.empty()) return {0.0, 0.0};
         
-        // Находим горизонтальную дорогу для старта
+        // Находим первую горизонтальную дорогу
         for (const auto& road : roads) {
             if (road.IsHorizontal()) {
                 auto start = road.GetStart();
@@ -97,6 +97,7 @@ private:
             }
         }
         
+        // Если нет горизонтальных, берем вертикальную
         const auto& road = roads[0];
         auto start = road.GetStart();
         auto end = road.GetEnd();
@@ -116,7 +117,6 @@ private:
         Point pos = player->GetPos();
         double new_x = pos.x;
         double new_y = pos.y;
-        bool moved = false;
         
         // Горизонтальное движение
         if (speed.vx != 0) {
@@ -128,8 +128,15 @@ private:
                     new_x = pos.x + speed.vx * time_delta;
                     double min_x = std::min(start.x, end.x) - 0.4;
                     double max_x = std::max(start.x, end.x) + 0.4;
-                    new_x = std::max(min_x, std::min(max_x, new_x));
-                    moved = true;
+                    
+                    // Ограничиваем движение
+                    if (new_x <= min_x) {
+                        new_x = min_x;
+                        player->SetSpeed(0, 0);
+                    } else if (new_x >= max_x) {
+                        new_x = max_x;
+                        player->SetSpeed(0, 0);
+                    }
                     break;
                 }
             }
@@ -144,39 +151,13 @@ private:
                     new_y = pos.y + speed.vy * time_delta;
                     double min_y = std::min(start.y, end.y) - 0.4;
                     double max_y = std::max(start.y, end.y) + 0.4;
-                    new_y = std::max(min_y, std::min(max_y, new_y));
-                    moved = true;
-                    break;
-                }
-            }
-        }
-        
-        if (moved) {
-            player->SetPos({new_x, new_y});
-        }
-        
-        // Останавливаем, если достигли границы
-        if (speed.vx != 0) {
-            for (const auto& road : map.GetRoads()) {
-                if (road.IsHorizontal() && std::abs(new_y - road.GetStart().y) < 0.5) {
-                    auto start = road.GetStart();
-                    auto end = road.GetEnd();
-                    double min_x = std::min(start.x, end.x) - 0.4;
-                    double max_x = std::max(start.x, end.x) + 0.4;
-                    if (new_x <= min_x || new_x >= max_x) {
+                    
+                    // Ограничиваем движение
+                    if (new_y <= min_y) {
+                        new_y = min_y;
                         player->SetSpeed(0, 0);
-                    }
-                    break;
-                }
-            }
-        } else if (speed.vy != 0 && moved) {
-            for (const auto& road : map.GetRoads()) {
-                if (!road.IsHorizontal() && std::abs(new_x - road.GetStart().x) < 0.5) {
-                    auto start = road.GetStart();
-                    auto end = road.GetEnd();
-                    double min_y = std::min(start.y, end.y) - 0.4;
-                    double max_y = std::max(start.y, end.y) + 0.4;
-                    if (new_y <= min_y || new_y >= max_y) {
+                    } else if (new_y >= max_y) {
+                        new_y = max_y;
                         player->SetSpeed(0, 0);
                     }
                     break;
@@ -184,10 +165,7 @@ private:
             }
         }
         
-        // Если движение не произошло (нет дороги), сбрасываем скорость
-        if (!moved && (speed.vx != 0 || speed.vy != 0)) {
-            player->SetSpeed(0, 0);
-        }
+        player->SetPos({new_x, new_y});
     }
 
     int next_id_ = 0;
