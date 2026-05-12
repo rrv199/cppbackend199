@@ -7,14 +7,13 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 add_compile_definitions(BOOST_BEAST_USE_STD_STRING_VIEW)
 add_compile_definitions(BOOST_JSON_HEADER_ONLY)
 
-# Подключаем Conan (если файл существует)
+# Conan setup
 if(EXISTS ${CMAKE_BINARY_DIR}/conanbuildinfo.cmake)
     include(${CMAKE_BINARY_DIR}/conanbuildinfo.cmake)
     conan_basic_setup()
 endif()
 
-# Ищем Boost
-find_package(Boost REQUIRED COMPONENTS system)
+find_package(Boost REQUIRED)
 
 set(SOURCES
     main.cpp
@@ -22,8 +21,6 @@ set(SOURCES
     json_loader.cpp
     request_handler.cpp
     boost_json.cpp
-    loot_generator.cpp
-    globals.cpp
 )
 
 add_executable(game_server ${SOURCES})

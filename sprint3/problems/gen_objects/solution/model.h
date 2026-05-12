@@ -91,16 +91,15 @@ public:
 
     const Id& GetId() const { return id_; }
     const std::string& GetName() const { return name_; }
-
-    size_t GetLootTypesCount() const { return loot_types_count_; }
-    void SetLootTypesCount(size_t count) { loot_types_count_ = count; }
+    double GetDogSpeed() const { return dog_speed_; }
+    void SetDogSpeed(double speed) { dog_speed_ = speed; }
 
     const std::vector<Road>& GetRoads() const { return roads_; }
     const std::vector<Building>& GetBuildings() const { return buildings_; }
     const std::vector<Office>& GetOffices() const { return offices_; }
-    double GetDogSpeed() const { return dog_speed_; }
-    void SetDogSpeed(double speed) { dog_speed_ = speed; }
 
+    size_t GetLootTypesCount() const { return loot_types_count_; }
+    void SetLootTypesCount(size_t count) { loot_types_count_ = count; }
 
     void AddRoad(Road road) { roads_.push_back(std::move(road)); }
     void AddBuilding(Building building) { buildings_.push_back(std::move(building)); }
@@ -109,11 +108,11 @@ public:
 private:
     Id id_;
     std::string name_;
-    size_t loot_types_count_ = 0;
     double dog_speed_;
     std::vector<Road> roads_;
     std::vector<Building> buildings_;
     std::vector<Office> offices_;
+    size_t loot_types_count_ = 0;
 };
 
 class Game {

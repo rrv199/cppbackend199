@@ -10,9 +10,6 @@
 #include <cmath>
 #include <algorithm>
 
-// Глобальная настройка для режима генерации позиций
-extern bool g_randomize_spawn_points;
-
 class PlayerManager {
 public:
     static PlayerManager& Instance() {
@@ -90,43 +87,26 @@ private:
         const auto& roads = map.GetRoads();
         if (roads.empty()) return {0.0, 0.0};
         
-        if (g_randomize_spawn_points) {
-            // Случайная дорога
-            std::uniform_int_distribution<size_t> road_dist(0, roads.size() - 1);
-            size_t road_idx = road_dist(rng_);
-            const auto& road = roads[road_idx];
-            auto start = road.GetStart();
-            auto end = road.GetEnd();
-            
-            std::uniform_real_distribution<double> pos_dist(0.0, 1.0);
-            double t = pos_dist(rng_);
-            
+        // Находим первую горизонтальную дорогу
+        for (const auto& road : roads) {
             if (road.IsHorizontal()) {
-                return {start.x + t * (end.x - start.x), static_cast<double>(start.y)};
-            } else {
-                return {static_cast<double>(start.x), start.y + t * (end.y - start.y)};
-            }
-        } else {
-            // Фиксированная позиция - начало первой горизонтальной дороги
-            for (const auto& road : roads) {
-                if (road.IsHorizontal()) {
-                    auto start = road.GetStart();
-                    auto end = road.GetEnd();
-                    double mid_x = (start.x + end.x) / 2.0;
-                    return {mid_x, static_cast<double>(start.y)};
-                }
-            }
-            
-            const auto& road = roads[0];
-            auto start = road.GetStart();
-            auto end = road.GetEnd();
-            if (road.IsHorizontal()) {
+                auto start = road.GetStart();
+                auto end = road.GetEnd();
                 double mid_x = (start.x + end.x) / 2.0;
                 return {mid_x, static_cast<double>(start.y)};
-            } else {
-                double mid_y = (start.y + end.y) / 2.0;
-                return {static_cast<double>(start.x), mid_y};
             }
+        }
+        
+        // Если нет горизонтальных, берем вертикальную
+        const auto& road = roads[0];
+        auto start = road.GetStart();
+        auto end = road.GetEnd();
+        if (road.IsHorizontal()) {
+            double mid_x = (start.x + end.x) / 2.0;
+            return {mid_x, static_cast<double>(start.y)};
+        } else {
+            double mid_y = (start.y + end.y) / 2.0;
+            return {static_cast<double>(start.x), mid_y};
         }
     }
     
@@ -149,6 +129,7 @@ private:
                     double min_x = std::min(start.x, end.x) - 0.4;
                     double max_x = std::max(start.x, end.x) + 0.4;
                     
+                    // Ограничиваем движение
                     if (new_x <= min_x) {
                         new_x = min_x;
                         player->SetSpeed(0, 0);
@@ -171,6 +152,7 @@ private:
                     double min_y = std::min(start.y, end.y) - 0.4;
                     double max_y = std::max(start.y, end.y) + 0.4;
                     
+                    // Ограничиваем движение
                     if (new_y <= min_y) {
                         new_y = min_y;
                         player->SetSpeed(0, 0);
@@ -192,11 +174,3 @@ private:
     std::unordered_map<std::string, std::shared_ptr<Player>> token_to_player_;
     std::unordered_map<std::string, std::unordered_map<int, std::shared_ptr<Player>>> map_players_;
 };
-
-extern bool g_has_tick_period;
-void SetTickPeriodMode(bool enabled);
-
-// Глобальные переменные
-extern bool g_randomize_spawn_points;
-extern bool g_has_tick_period;
-void SetTickPeriodMode(bool enabled);
