@@ -1,0 +1,16 @@
+GET /api/v1/maps
+GET /api/v1/maps/map1
+GET /api/v1/maps/town
+POST /api/v1/game/join
+{"userName":"TestUser1","mapId":"map1"}
+POST /api/v1/game/join
+{"userName":"TestUser2","mapId":"town"}
+HEAD /api/v1/maps
+HEAD /api/v1/maps/map1
+GET /api/v1/game/state?playerId=0
+GET /api/v1/game/players
+GET /api/v1/game/state
+GET /api/v1/game/players
+GET /static/index.html
+GET /static/game.html
+GET /static/js/game.js
