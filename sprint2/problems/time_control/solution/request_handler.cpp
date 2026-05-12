@@ -315,7 +315,14 @@ StringResponse HandlePlayerAction(const json::value& body, const std::string& to
 }
 
 
+
 StringResponse HandleGameTick(const json::value& body, const model::Game& game) {
+    if (body.is_null()) {
+        return MakeJsonResponse(http::status::bad_request,
+            json::serialize(json::object{{"code", "invalidArgument"}, {"message", "Missing timeDelta field"}}),
+            11, true);
+    }
+    
     try {
         auto obj = body.as_object();
         if (!obj.contains("timeDelta")) {
@@ -323,7 +330,7 @@ StringResponse HandleGameTick(const json::value& body, const model::Game& game) 
                 json::serialize(json::object{{"code", "invalidArgument"}, {"message", "Missing timeDelta field"}}),
                 11, true);
         }
-        
+
         int time_delta_ms = 0;
         const auto& delta_val = obj.at("timeDelta");
         if (delta_val.is_int64()) {
@@ -335,20 +342,20 @@ StringResponse HandleGameTick(const json::value& body, const model::Game& game) 
                 json::serialize(json::object{{"code", "invalidArgument"}, {"message", "timeDelta must be an integer"}}),
                 11, true);
         }
-        
+
         if (time_delta_ms < 0) {
             return MakeJsonResponse(http::status::bad_request,
                 json::serialize(json::object{{"code", "invalidArgument"}, {"message", "timeDelta must be non-negative"}}),
                 11, true);
         }
-        
+
         double time_delta_sec = static_cast<double>(time_delta_ms) / 1000.0;
-        
+
         for (const auto& map : game.GetMaps()) {
             std::string map_id = GetStringFromTagged(map.GetId());
             PlayerManager::Instance().UpdatePlayers(map_id, time_delta_sec, game);
         }
-        
+
         return MakeJsonResponse(http::status::ok, "{}", 11, true);
     } catch (const std::exception& e) {
         return MakeJsonResponse(http::status::bad_request,
