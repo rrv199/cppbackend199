@@ -87,7 +87,7 @@ private:
         const auto& roads = map.GetRoads();
         if (roads.empty()) return {0.0, 0.0};
         
-        // Для карты town используем координаты из тестов
+        // Находим горизонтальную дорогу для старта
         for (const auto& road : roads) {
             if (road.IsHorizontal()) {
                 auto start = road.GetStart();
@@ -116,6 +116,7 @@ private:
         Point pos = player->GetPos();
         double new_x = pos.x;
         double new_y = pos.y;
+        bool moved = false;
         
         // Горизонтальное движение
         if (speed.vx != 0) {
@@ -125,11 +126,10 @@ private:
                     auto end = road.GetEnd();
                     new_y = static_cast<double>(start.y);
                     new_x = pos.x + speed.vx * time_delta;
-                    // Границы: конец дороги + 0.4, начало - 0.4
                     double min_x = std::min(start.x, end.x) - 0.4;
                     double max_x = std::max(start.x, end.x) + 0.4;
-                    
                     new_x = std::max(min_x, std::min(max_x, new_x));
+                    moved = true;
                     break;
                 }
             }
@@ -142,19 +142,20 @@ private:
                     auto end = road.GetEnd();
                     new_x = static_cast<double>(start.x);
                     new_y = pos.y + speed.vy * time_delta;
-                    // Границы: конец дороги + 0.4, начало - 0.4
                     double min_y = std::min(start.y, end.y) - 0.4;
                     double max_y = std::max(start.y, end.y) + 0.4;
-                    
                     new_y = std::max(min_y, std::min(max_y, new_y));
+                    moved = true;
                     break;
                 }
             }
         }
         
-        player->SetPos({new_x, new_y});
+        if (moved) {
+            player->SetPos({new_x, new_y});
+        }
         
-        // Останавливаем, если достигли границы И пытаемся двигаться дальше
+        // Останавливаем, если достигли границы
         if (speed.vx != 0) {
             for (const auto& road : map.GetRoads()) {
                 if (road.IsHorizontal() && std::abs(new_y - road.GetStart().y) < 0.5) {
@@ -168,7 +169,7 @@ private:
                     break;
                 }
             }
-        } else if (speed.vy != 0) {
+        } else if (speed.vy != 0 && moved) {
             for (const auto& road : map.GetRoads()) {
                 if (!road.IsHorizontal() && std::abs(new_x - road.GetStart().x) < 0.5) {
                     auto start = road.GetStart();
@@ -181,6 +182,11 @@ private:
                     break;
                 }
             }
+        }
+        
+        // Если движение не произошло (нет дороги), сбрасываем скорость
+        if (!moved && (speed.vx != 0 || speed.vy != 0)) {
+            player->SetSpeed(0, 0);
         }
     }
 
