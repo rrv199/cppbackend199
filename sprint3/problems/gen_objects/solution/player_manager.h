@@ -195,3 +195,8 @@ private:
 
 extern bool g_has_tick_period;
 void SetTickPeriodMode(bool enabled);
+
+// Глобальные переменные
+extern bool g_randomize_spawn_points;
+extern bool g_has_tick_period;
+void SetTickPeriodMode(bool enabled);

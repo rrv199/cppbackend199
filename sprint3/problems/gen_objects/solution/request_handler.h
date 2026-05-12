@@ -36,3 +36,12 @@ void SetTickPeriodMode(bool enabled);
 void SetTickPeriodMode(bool enabled);
 
 void SetTickPeriodMode(bool enabled);
+
+// Глобальная переменная для tick period
+extern bool g_has_tick_period;
+void SetTickPeriodMode(bool enabled);
+
+namespace http_handler {
+    extern bool g_has_tick_period;
+    void SetTickPeriodMode(bool enabled);
+}

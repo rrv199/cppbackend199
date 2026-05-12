@@ -7,7 +7,7 @@
 #include <boost/asio/signal_set.hpp>
 #include "http_server.h"
 #include "request_handler.h"
-extern bool g_randomize_spawn_points;
+#include "player_manager.h"
 extern void SetTickPeriodMode(bool);
 #include "json_loader.h"
 
