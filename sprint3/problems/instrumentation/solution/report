@@ -1,5 +1,5 @@
 {
-  "slowest_func_v0": "getNode",
+  "slowest_func_v0": "addAnnotatedEdge",
   "slowest_func_v1": "getNode",
   "slowest_func_v2": "addEdge"
 }
