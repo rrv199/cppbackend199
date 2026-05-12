@@ -7,6 +7,8 @@
 #include <boost/asio/signal_set.hpp>
 #include "http_server.h"
 #include "request_handler.h"
+extern bool g_randomize_spawn_points;
+extern void SetTickPeriodMode(bool);
 #include "json_loader.h"
 
 namespace net = boost::asio;
@@ -15,7 +17,6 @@ namespace sys = boost::system;
 namespace fs = std::filesystem;
 
 // Глобальная переменная для режима генерации позиций
-bool g_randomize_spawn_points = false;
 
 struct ProgramOptions {
     std::string config_file;

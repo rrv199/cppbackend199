@@ -192,3 +192,6 @@ private:
     std::unordered_map<std::string, std::shared_ptr<Player>> token_to_player_;
     std::unordered_map<std::string, std::unordered_map<int, std::shared_ptr<Player>>> map_players_;
 };
+
+extern bool g_has_tick_period;
+void SetTickPeriodMode(bool enabled);
