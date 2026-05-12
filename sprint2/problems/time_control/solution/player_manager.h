@@ -88,6 +88,7 @@ private:
         const auto& roads = map.GetRoads();
         if (roads.empty()) return {0.0, 0.0};
         
+        // Находим первую горизонтальную дорогу
         for (const auto& road : roads) {
             if (road.IsHorizontal()) {
                 auto start = road.GetStart();
@@ -97,9 +98,10 @@ private:
             }
         }
         
-        const auto& first_road = roads[0];
-        auto start = first_road.GetStart();
-        auto end = first_road.GetEnd();
+        // Если нет горизонтальных, берем вертикальную
+        const auto& road = roads[0];
+        auto start = road.GetStart();
+        auto end = road.GetEnd();
         double mid_y = (start.y + end.y) / 2.0;
         return {static_cast<double>(start.x), mid_y};
     }
@@ -112,52 +114,40 @@ private:
         double new_x = pos.x + speed.vx * time_delta;
         double new_y = pos.y + speed.vy * time_delta;
         
-        bool stopped = false;
-        
+        // Находим дорогу, на которой находится игрок
         for (const auto& road : map.GetRoads()) {
             auto start = road.GetStart();
             auto end = road.GetEnd();
             
-            // Горизонтальная дорога
             if (road.IsHorizontal()) {
-                // Проверяем, находится ли игрок на этой дороге по Y
-                if (std::abs(new_y - start.y) < 0.5) {
+                // Проверяем, находится ли игрок на этой дороге по Y (с учетом ширины дороги 0.8, центр на start.y ± 0.4)
+                if (std::abs(pos.y - start.y) < 0.5) {
+                    // Ограничиваем X
                     double min_x = std::min(start.x, end.x) - 0.4;
                     double max_x = std::max(start.x, end.x) + 0.4;
-                    
-                    if (new_x <= min_x) {
-                        new_x = min_x;
-                        stopped = true;
-                    } else if (new_x >= max_x) {
-                        new_x = max_x;
-                        stopped = true;
-                    }
+                    new_x = std::clamp(new_x, min_x, max_x);
                     new_y = static_cast<double>(start.y);
+                    
+                    // Останавливаем, если достигли границы
+                    if (new_x <= min_x || new_x >= max_x) {
+                        player->SetSpeed(0, 0);
+                    }
                     break;
                 }
-            }
-            // Вертикальная дорога
-            else {
-                // Проверяем, находится ли игрок на этой дороге по X
-                if (std::abs(new_x - start.x) < 0.5) {
+            } else {
+                // Вертикальная дорога
+                if (std::abs(pos.x - start.x) < 0.5) {
                     double min_y = std::min(start.y, end.y) - 0.4;
                     double max_y = std::max(start.y, end.y) + 0.4;
-                    
-                    if (new_y <= min_y) {
-                        new_y = min_y;
-                        stopped = true;
-                    } else if (new_y >= max_y) {
-                        new_y = max_y;
-                        stopped = true;
-                    }
+                    new_y = std::clamp(new_y, min_y, max_y);
                     new_x = static_cast<double>(start.x);
+                    
+                    if (new_y <= min_y || new_y >= max_y) {
+                        player->SetSpeed(0, 0);
+                    }
                     break;
                 }
             }
-        }
-        
-        if (stopped) {
-            player->SetSpeed(0, 0);
         }
         
         player->SetPos({new_x, new_y});
