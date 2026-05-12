@@ -87,19 +87,11 @@ private:
         const auto& roads = map.GetRoads();
         if (roads.empty()) return {0.0, 0.0};
         
-        // Для карты town используем первую горизонтальную дорогу
-        for (const auto& road : roads) {
-            if (road.IsHorizontal()) {
-                auto start = road.GetStart();
-                auto end = road.GetEnd();
-                double mid_x = (start.x + end.x) / 2.0;
-                return {mid_x, static_cast<double>(start.y)};
-            }
-        }
-        
+        // Ищем первую дорогу (обычно это main road)
         const auto& road = roads[0];
         auto start = road.GetStart();
         auto end = road.GetEnd();
+        
         if (road.IsHorizontal()) {
             double mid_x = (start.x + end.x) / 2.0;
             return {mid_x, static_cast<double>(start.y)};

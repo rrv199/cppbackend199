@@ -246,73 +246,6 @@ StringResponse HandleGameState(const std::string& token) {
     return MakeJsonResponse(http::status::ok, json::serialize(result), 11, true);
 }
 
-StringResponse HandlePlayerAction(const json::value& body, const std::string& token, const model::Game& game) {
-    // Check token
-    auto player = PlayerManager::Instance().GetPlayerByToken(token);
-    if (!player) {
-        return MakeJsonResponse(http::status::unauthorized,
-            json::serialize(json::object{{"code", "unknownToken"}, {"message", "Player token has not been found"}}),
-            11, true);
-    }
-    
-    // Parse body
-    try {
-        auto obj = body.as_object();
-        if (!obj.contains("move")) {
-            return MakeJsonResponse(http::status::bad_request,
-                json::serialize(json::object{{"code", "invalidArgument"}, {"message", "Missing move field"}}),
-                11, true);
-        }
-        
-        std::string move = json::value_to<std::string>(obj.at("move"));
-        
-        // Get map speed
-        const model::Map* map = nullptr;
-        for (const auto& m : game.GetMaps()) {
-            if (GetStringFromTagged(m.GetId()) == player->GetMapId()) {
-                map = &m;
-                break;
-            }
-        }
-        
-        if (!map) {
-            return MakeJsonResponse(http::status::internal_server_error,
-                json::serialize(json::object{{"code", "internalError"}, {"message", "Map not found"}}),
-                11, true);
-        }
-        
-        double speed_value = map->GetDogSpeed();
-        
-        // Set speed based on move direction
-        if (move == "L") {
-            player->SetSpeed(-speed_value, 0);
-            player->SetDirection(Direction::WEST);
-        } else if (move == "R") {
-            player->SetSpeed(speed_value, 0);
-            player->SetDirection(Direction::EAST);
-        } else if (move == "U") {
-            player->SetSpeed(0, -speed_value);
-            player->SetDirection(Direction::NORTH);
-        } else if (move == "D") {
-            player->SetSpeed(0, speed_value);
-            player->SetDirection(Direction::SOUTH);
-        } else if (move.empty()) {
-            player->SetSpeed(0, 0);
-        } else {
-            return MakeJsonResponse(http::status::bad_request,
-                json::serialize(json::object{{"code", "invalidArgument"}, {"message", "Invalid move value"}}),
-                11, true);
-        }
-        
-        // Return empty JSON object
-        return MakeJsonResponse(http::status::ok, "{}", 11, true);
-        
-    } catch (const std::exception& e) {
-        return MakeJsonResponse(http::status::bad_request,
-            json::serialize(json::object{{"code", "invalidArgument"}, {"message", "Failed to parse action"}}),
-            11, true);
-    }
-}
 
 
 
@@ -360,6 +293,90 @@ StringResponse HandleGameTick(const json::value& body, const model::Game& game) 
     } catch (const std::exception& e) {
         return MakeJsonResponse(http::status::bad_request,
             json::serialize(json::object{{"code", "invalidArgument"}, {"message", "Failed to parse tick request JSON"}}),
+            11, true);
+    }
+}
+
+StringResponse HandlePlayerAction(const json::value& body, const std::string& token, const model::Game& game) {
+    auto player = PlayerManager::Instance().GetPlayerByToken(token);
+    if (!player) {
+        return MakeJsonResponse(http::status::unauthorized,
+            json::serialize(json::object{{"code", "unknownToken"}, {"message", "Player token has not been found"}}),
+            11, true);
+    }
+
+    try {
+        auto obj = body.as_object();
+        if (!obj.contains("move")) {
+            return MakeJsonResponse(http::status::bad_request,
+                json::serialize(json::object{{"code", "invalidArgument"}, {"message", "Missing move field"}}),
+                11, true);
+        }
+
+        std::string move = json::value_to<std::string>(obj.at("move"));
+
+        const model::Map* map = nullptr;
+        for (const auto& m : game.GetMaps()) {
+            if (GetStringFromTagged(m.GetId()) == player->GetMapId()) {
+                map = &m;
+                break;
+            }
+        }
+
+        if (!map) {
+            return MakeJsonResponse(http::status::internal_server_error,
+                json::serialize(json::object{{"code", "internalError"}, {"message", "Map not found"}}),
+                11, true);
+        }
+
+        double speed_value = map->GetDogSpeed();
+        Point current_pos = player->GetPos();
+        bool can_move = false;
+
+        if (move == "L" || move == "R") {
+            for (const auto& road : map->GetRoads()) {
+                if (road.IsHorizontal() && std::abs(current_pos.y - road.GetStart().y) < 0.5) {
+                    can_move = true;
+                    break;
+                }
+            }
+        } else if (move == "U" || move == "D") {
+            for (const auto& road : map->GetRoads()) {
+                if (!road.IsHorizontal() && std::abs(current_pos.x - road.GetStart().x) < 0.5) {
+                    can_move = true;
+                    break;
+                }
+            }
+        } else if (move.empty()) {
+            can_move = true;
+        }
+
+        if (!can_move && !move.empty()) {
+            player->SetSpeed(0, 0);
+        } else if (move == "L") {
+            player->SetSpeed(-speed_value, 0);
+            player->SetDirection(Direction::WEST);
+        } else if (move == "R") {
+            player->SetSpeed(speed_value, 0);
+            player->SetDirection(Direction::EAST);
+        } else if (move == "U") {
+            player->SetSpeed(0, -speed_value);
+            player->SetDirection(Direction::NORTH);
+        } else if (move == "D") {
+            player->SetSpeed(0, speed_value);
+            player->SetDirection(Direction::SOUTH);
+        } else if (move.empty()) {
+            player->SetSpeed(0, 0);
+        } else {
+            return MakeJsonResponse(http::status::bad_request,
+                json::serialize(json::object{{"code", "invalidArgument"}, {"message", "Invalid move value"}}),
+                11, true);
+        }
+
+        return MakeJsonResponse(http::status::ok, "{}", 11, true);
+    } catch (const std::exception& e) {
+        return MakeJsonResponse(http::status::bad_request,
+            json::serialize(json::object{{"code", "invalidArgument"}, {"message", "Failed to parse action"}}),
             11, true);
     }
 }
