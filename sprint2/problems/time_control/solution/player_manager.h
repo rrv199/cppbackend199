@@ -105,53 +105,45 @@ private:
         if (speed.vx == 0 && speed.vy == 0) return;
         
         Point pos = player->GetPos();
-        double new_x = pos.x + speed.vx * time_delta;
-        double new_y = pos.y + speed.vy * time_delta;
+        double new_x = pos.x;
+        double new_y = pos.y;
         
-        bool at_boundary = false;
+        // Определяем направление движения и находим соответствующую дорогу
+        bool moved = false;
         
         for (const auto& road : map.GetRoads()) {
             auto start = road.GetStart();
             auto end = road.GetEnd();
             
-            if (road.IsHorizontal()) {
-                if (std::abs(pos.y - start.y) < 0.5) {
+            // Горизонтальное движение
+            if (speed.vx != 0) {
+                if (road.IsHorizontal() && std::abs(pos.y - start.y) < 0.5) {
+                    new_y = static_cast<double>(start.y);
+                    new_x = pos.x + speed.vx * time_delta;
                     double min_x = std::min(start.x, end.x) - 0.4;
                     double max_x = std::max(start.x, end.x) + 0.4;
-                    
-                    if (new_x <= min_x) {
-                        new_x = min_x;
-                        at_boundary = true;
-                    } else if (new_x >= max_x) {
-                        new_x = max_x;
-                        at_boundary = true;
-                    }
-                    new_y = static_cast<double>(start.y);
+                    new_x = std::clamp(new_x, min_x, max_x);
+                    moved = true;
                     break;
                 }
-            } else {
-                if (std::abs(pos.x - start.x) < 0.5) {
+            }
+            // Вертикальное движение
+            else if (speed.vy != 0) {
+                if (!road.IsHorizontal() && std::abs(pos.x - start.x) < 0.5) {
+                    new_x = static_cast<double>(start.x);
+                    new_y = pos.y + speed.vy * time_delta;
                     double min_y = std::min(start.y, end.y) - 0.4;
                     double max_y = std::max(start.y, end.y) + 0.4;
-                    
-                    if (new_y <= min_y) {
-                        new_y = min_y;
-                        at_boundary = true;
-                    } else if (new_y >= max_y) {
-                        new_y = max_y;
-                        at_boundary = true;
-                    }
-                    new_x = static_cast<double>(start.x);
+                    new_y = std::clamp(new_y, min_y, max_y);
+                    moved = true;
                     break;
                 }
             }
         }
         
-        if (at_boundary) {
-            player->SetSpeed(0, 0);
+        if (moved) {
+            player->SetPos({new_x, new_y});
         }
-        
-        player->SetPos({new_x, new_y});
     }
 
     int next_id_ = 0;
