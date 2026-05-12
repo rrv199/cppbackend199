@@ -1,16 +1,41 @@
+[Host: localhost]
+[Connection: close]
 GET /api/v1/maps
+
+[Host: localhost]
+[Connection: close]
 GET /api/v1/maps/map1
+
+[Host: localhost]
+[Connection: close]
 GET /api/v1/maps/town
+
+[Host: localhost]
+[Connection: close]
 POST /api/v1/game/join
-{"userName":"TestUser1","mapId":"map1"}
+Content-Length: 45
+
+{"userName":"loadtest1","mapId":"map1"}
+
+[Host: localhost]
+[Connection: close]
 POST /api/v1/game/join
-{"userName":"TestUser2","mapId":"town"}
-HEAD /api/v1/maps
-HEAD /api/v1/maps/map1
-GET /api/v1/game/state?playerId=0
-GET /api/v1/game/players
+Content-Length: 45
+
+{"userName":"loadtest2","mapId":"town"}
+
+[Host: localhost]
+[Connection: close]
 GET /api/v1/game/state
+
+[Host: localhost]
+[Connection: close]
 GET /api/v1/game/players
+
+[Host: localhost]
+[Connection: close]
 GET /static/index.html
+
+[Host: localhost]
+[Connection: close]
 GET /static/game.html
-GET /static/js/game.js

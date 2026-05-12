@@ -3,7 +3,7 @@ phantom:
   ammofile: ammo.txt
   load_profile:
     load_type: rps
-    schedule: line(1, 1000, 120s)  # Плавный рост от 1 до 1000 RPS за 2 минуты
+    schedule: const(100000, 60s)  # 100000 RPS в течение 60 секунд
   uris:
     - /
   headers:
@@ -13,7 +13,7 @@ phantom:
   ammo_type: uri
 autostop:
   autostop:
-    - http(5xx,20%,3s)  # Остановка при 20% ошибок 5xx за 3 секунды
+    - http(5xx,50%,5s)  # Остановка при 50% ошибок 5xx за 5 секунд
 console:
   enabled: true
 telegraf:
