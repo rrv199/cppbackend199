@@ -1,0 +1,11 @@
+                auto response = HandleGameState(token);
+                send(std::move(response));
+                return;
+            } else {
+                auto response = MakeJsonResponse(http::status::method_not_allowed,
+                    json::serialize(json::object{{"code", "invalidMethod"}, {"message", "Method not allowed"}}),
+                    11, true);
+                response.set(http::field::allow, "GET, HEAD");
+                send(std::move(response));
+                return;
+            }

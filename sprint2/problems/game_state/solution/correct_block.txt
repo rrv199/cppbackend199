@@ -1,0 +1,42 @@
+        if (target == "api/v1/game/state") {
+            if (req.method() == http::verb::get || req.method() == http::verb::head) {
+                std::string token;
+                auto auth_it = req.find(http::field::authorization);
+                if (auth_it == req.end()) {
+                    auto response = MakeJsonResponse(http::status::unauthorized,
+                        json::serialize(json::object{{"code", "invalidToken"}, {"message", "Authorization header missing"}}),
+                        11, true);
+                    send(std::move(response));
+                    return;
+                }
+
+                std::string auth = std::string(auth_it->value());
+                if (auth.find("Bearer ") != 0) {
+                    auto response = MakeJsonResponse(http::status::unauthorized,
+                        json::serialize(json::object{{"code", "invalidToken"}, {"message", "Invalid auth format"}}),
+                        11, true);
+                    send(std::move(response));
+                    return;
+                }
+
+                token = auth.substr(7);
+                if (token.length() != 32) {
+                    auto response = MakeJsonResponse(http::status::unauthorized,
+                        json::serialize(json::object{{"code", "invalidToken"}, {"message", "Invalid token length"}}),
+                        11, true);
+                    send(std::move(response));
+                    return;
+                }
+
+                auto response = HandleGameState(token);
+                send(std::move(response));
+                return;
+            } else {
+                auto response = MakeJsonResponse(http::status::method_not_allowed,
+                    json::serialize(json::object{{"code", "invalidMethod"}, {"message", "Method not allowed"}}),
+                    11, true);
+                response.set(http::field::allow, "GET, HEAD");
+                send(std::move(response));
+                return;
+            }
+        }
