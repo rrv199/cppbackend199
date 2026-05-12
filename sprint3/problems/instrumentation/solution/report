@@ -1,5 +1,5 @@
 {
-  "version0": "getNode",
-  "version1": "getNode",
-  "version2": "addEdge"
+  "slowest_func_v0": "getNode",
+  "slowest_func_v1": "getNode",
+  "slowest_func_v2": "addEdge"
 }
