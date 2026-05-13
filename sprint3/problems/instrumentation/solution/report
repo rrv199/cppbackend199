@@ -1,5 +1,5 @@
 {
-  "v0": "GraphHashGet",
-  "v1": "__tree_search",
-  "v2": "GetOption"
+  "slowest_func_v0": "GraphHashGet",
+  "slowest_func_v1": "__tree_search",
+  "slowest_func_v2": "GetOption"
 }
