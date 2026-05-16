@@ -208,7 +208,6 @@ int main() {
                     pqxx::connection conn(db_url);
                     pqxx::nontransaction t(conn);
                     
-                    // First, find books matching the title
                     auto res = t.exec_params(
                         "SELECT b.id, b.title, a.name, b.publication_year "
                         "FROM books b JOIN authors a ON b.author_id = a.id "
@@ -216,54 +215,10 @@ int main() {
                         "ORDER BY b.title, a.name, b.publication_year", title);
                     
                     if (res.empty()) {
-                        // No book found with this title - show all books for selection
-                        auto all_books = t.exec(
-                            "SELECT b.id, b.title, a.name, b.publication_year "
-                            "FROM books b JOIN authors a ON b.author_id = a.id "
-                            "ORDER BY b.title, a.name, b.publication_year");
-                        
-                        if (all_books.empty()) continue;
-                        
-                        cout << "Select book:" << endl;
-                        vector<string> book_ids;
-                        for (size_t i = 0; i < all_books.size(); ++i) {
-                            const auto& row = all_books[i];
-                            cout << i + 1 << " " << row[1].as<string>() << " by " 
-                                 << row[2].as<string>() << ", " << row[3].as<int>() << endl;
-                            book_ids.push_back(row[0].as<string>());
-                        }
-                        cout << "Enter the book # or empty line to cancel:" << endl;
-                        string choice_line;
-                        getline(cin, choice_line);
-                        if (choice_line.empty()) continue;
-                        int choice = stoi(choice_line);
-                        if (choice < 1 || choice > (int)book_ids.size()) continue;
-                        
-                        auto book_res = t.exec_params(
-                            "SELECT b.title, a.name, b.publication_year "
-                            "FROM books b JOIN authors a ON b.author_id = a.id "
-                            "WHERE b.id = $1", book_ids[choice - 1]);
-                        
-                        if (!book_res.empty()) {
-                            const auto& row = book_res[0];
-                            cout << "Title: " << row[0].as<string>() << endl;
-                            cout << "Author: " << row[1].as<string>() << endl;
-                            cout << "Publication year: " << row[2].as<int>() << endl;
-                            
-                            auto tag_res = t.exec_params("SELECT tag FROM book_tags WHERE book_id = $1 ORDER BY tag", book_ids[choice - 1]);
-                            if (!tag_res.empty()) {
-                                cout << "Tags: ";
-                                for (size_t j = 0; j < tag_res.size(); ++j) {
-                                    if (j > 0) cout << ", ";
-                                    cout << tag_res[j][0].as<string>();
-                                }
-                                cout << endl;
-                            }
-                        }
+                        // No book found with this title
                         continue;
                     }
                     
-                    // Found one or more books with this title
                     if (res.size() == 1) {
                         const auto& row = res[0];
                         cout << "Title: " << row[1].as<string>() << endl;
@@ -279,37 +234,38 @@ int main() {
                             }
                             cout << endl;
                         }
-                    } else {
-                        // Multiple books with same title - show selection
-                        cout << "Select book:" << endl;
-                        vector<string> book_ids;
-                        for (size_t i = 0; i < res.size(); ++i) {
-                            const auto& row = res[i];
-                            cout << i + 1 << " " << row[1].as<string>() << " by " 
-                                 << row[2].as<string>() << ", " << row[3].as<int>() << endl;
-                            book_ids.push_back(row[0].as<string>());
+                        continue;
+                    }
+                    
+                    // Multiple books - show selection
+                    cout << "Select book:" << endl;
+                    vector<string> book_ids;
+                    for (size_t i = 0; i < res.size(); ++i) {
+                        const auto& row = res[i];
+                        cout << i + 1 << " " << row[1].as<string>() << " by " 
+                             << row[2].as<string>() << ", " << row[3].as<int>() << endl;
+                        book_ids.push_back(row[0].as<string>());
+                    }
+                    cout << "Enter the book # or empty line to cancel:" << endl;
+                    string choice_line;
+                    getline(cin, choice_line);
+                    if (choice_line.empty()) continue;
+                    int choice = stoi(choice_line);
+                    if (choice < 1 || choice > (int)book_ids.size()) continue;
+                    
+                    const auto& row = res[choice - 1];
+                    cout << "Title: " << row[1].as<string>() << endl;
+                    cout << "Author: " << row[2].as<string>() << endl;
+                    cout << "Publication year: " << row[3].as<int>() << endl;
+                    
+                    auto tag_res = t.exec_params("SELECT tag FROM book_tags WHERE book_id = $1 ORDER BY tag", book_ids[choice - 1]);
+                    if (!tag_res.empty()) {
+                        cout << "Tags: ";
+                        for (size_t j = 0; j < tag_res.size(); ++j) {
+                            if (j > 0) cout << ", ";
+                            cout << tag_res[j][0].as<string>();
                         }
-                        cout << "Enter the book # or empty line to cancel:" << endl;
-                        string choice_line;
-                        getline(cin, choice_line);
-                        if (choice_line.empty()) continue;
-                        int choice = stoi(choice_line);
-                        if (choice < 1 || choice > (int)book_ids.size()) continue;
-                        
-                        const auto& row = res[choice - 1];
-                        cout << "Title: " << row[1].as<string>() << endl;
-                        cout << "Author: " << row[2].as<string>() << endl;
-                        cout << "Publication year: " << row[3].as<int>() << endl;
-                        
-                        auto tag_res = t.exec_params("SELECT tag FROM book_tags WHERE book_id = $1 ORDER BY tag", book_ids[choice - 1]);
-                        if (!tag_res.empty()) {
-                            cout << "Tags: ";
-                            for (size_t j = 0; j < tag_res.size(); ++j) {
-                                if (j > 0) cout << ", ";
-                                cout << tag_res[j][0].as<string>();
-                            }
-                            cout << endl;
-                        }
+                        cout << endl;
                     }
                 } catch (...) {}
                 
@@ -338,33 +294,32 @@ int main() {
                             w.commit();
                             continue;
                         } else {
-                            // Multiple books with same title - show selection
                             cout << "Select book:" << endl;
-                            vector<pair<string, string>> books_list;
+                            vector<string> book_ids;
                             for (size_t i = 0; i < res.size(); ++i) {
                                 const auto& row = res[i];
                                 cout << i + 1 << " " << row[1].as<string>() << " by " 
                                      << row[2].as<string>() << ", " << row[3].as<int>() << endl;
-                                books_list.push_back({row[0].as<string>(), row[1].as<string>()});
+                                book_ids.push_back(row[0].as<string>());
                             }
                             cout << "Enter the book # or empty line to cancel:" << endl;
                             string choice_line;
                             getline(cin, choice_line);
                             if (choice_line.empty()) continue;
                             int choice = stoi(choice_line);
-                            if (choice < 1 || choice > (int)books_list.size()) {
+                            if (choice < 1 || choice > (int)book_ids.size()) {
                                 cout << "Failed to delete book" << endl;
                                 continue;
                             }
                             
                             pqxx::work w(conn);
-                            w.exec_params("DELETE FROM books WHERE id = $1", books_list[choice - 1].first);
+                            w.exec_params("DELETE FROM books WHERE id = $1", book_ids[choice - 1]);
                             w.commit();
                             continue;
                         }
                     }
                     
-                    // No title provided - show all books for selection
+                    // No title provided - show all books
                     auto all_books = t.exec(
                         "SELECT id, title, a.name, publication_year "
                         "FROM books b JOIN authors a ON b.author_id = a.id "
