@@ -28,8 +28,6 @@ public:
             
             w.commit();
             return true;
-        } catch (const pqxx::sql_error& e) {
-            return false;
         } catch (const std::exception& e) {
             return false;
         }
@@ -59,7 +57,7 @@ public:
                 result.push_back(book);
             }
         } catch (const std::exception& e) {
-            // Игнорируем ошибки
+            // Возвращаем пустой массив
         }
         
         return result;
@@ -69,22 +67,19 @@ private:
     void createTableIfNotExists() {
         try {
             pqxx::work w(*conn_);
-            w.exec_prepared("create_table");
+            w.exec("CREATE TABLE IF NOT EXISTS books ("
+                   "id SERIAL PRIMARY KEY, "
+                   "title varchar(100) NOT NULL, "
+                   "author varchar(100) NOT NULL, "
+                   "year integer NOT NULL, "
+                   "isbn char(13) UNIQUE)");
             w.commit();
         } catch (const std::exception& e) {
-            std::cerr << "Warning: " << e.what() << std::endl;
+            // Игнорируем
         }
     }
     
     void prepareStatements() {
-        conn_->prepare("create_table",
-            "CREATE TABLE IF NOT EXISTS books ("
-            "id SERIAL PRIMARY KEY, "
-            "title varchar(100) NOT NULL, "
-            "author varchar(100) NOT NULL, "
-            "year integer NOT NULL, "
-            "isbn char(13) UNIQUE)");
-        
         conn_->prepare("insert_book",
             "INSERT INTO books (title, author, year, isbn) "
             "VALUES ($1, $2, $3, $4)");
@@ -138,7 +133,11 @@ int main(int argc, char* argv[]) {
                 }
                 
             } catch (const json::parse_error& e) {
-                continue;
+                json response = {{"result", false}};
+                std::cout << response.dump() << std::endl;
+            } catch (const std::exception& e) {
+                json response = {{"result", false}};
+                std::cout << response.dump() << std::endl;
             }
         }
         
