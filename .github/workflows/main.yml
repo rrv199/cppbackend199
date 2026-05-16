@@ -263,27 +263,22 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip uninstall conan -y
-          pip install -U conan==1.59.0
-          pip install -r requirements.txt
-          pip show pytest
+          sudo apt update
+          sudo apt install -y cmake libboost-all-dev
 
-      - name: Build state_serialization image
+      - name: Build and test state_serialization
         run: |
-          cd sprint4/problems/state_serialization
-          docker build -t state_serialization:latest .
-
-      - name: run tests sprint4 state_serialization
-        run: |
-          cd cpp-backend-tests-practicum/scripts/sprint4
-          ./state_serialization/run.sh
+          cd sprint4/problems/state_serialization/solution
+          mkdir -p build && cd build
+          cmake ..
+          make -j4
+          ./serialization_tests -s
 
       - name: Publish XML reports
         uses: EnricoMi/publish-unit-test-result-action@v2
         if: always()
         with:
           junit_files: ${{ github.workspace }}/*.xml
-
   sprint_3_with_server:
     if: github.repository_owner != 'cpppracticum'
     runs-on: ubuntu-22.04
