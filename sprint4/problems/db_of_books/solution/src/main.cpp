@@ -12,12 +12,25 @@ public:
     BookManager(const std::string& conn_string) 
         : conn_(std::make_shared<pqxx::connection>(conn_string)) {
         prepareStatements();
+        // Создаем таблицу при запуске
+        try {
+            pqxx::work w(*conn_);
+            w.exec(
+                "CREATE TABLE IF NOT EXISTS books ("
+                "id SERIAL PRIMARY KEY, "
+                "title varchar(100) NOT NULL, "
+                "author varchar(100) NOT NULL, "
+                "year integer NOT NULL, "
+                "isbn char(13) UNIQUE)");
+            w.commit();
+        } catch (...) {
+            // Игнорируем ошибки при создании таблицы
+        }
     }
     
     bool addBook(const std::string& title, const std::string& author, 
                  int year, const std::optional<std::string>& isbn) {
         try {
-            createTableIfNeeded();
             pqxx::work w(*conn_);
             
             if (isbn.has_value()) {
@@ -28,21 +41,12 @@ public:
             
             w.commit();
             return true;
-        } catch (const pqxx::sql_error& e) {
-            std::string err = e.what();
-            if (err.find("does not exist") != std::string::npos) {
-                // Если таблицы нет, создаем и пробуем снова
-                forceCreateTable();
-                return addBook(title, author, year, isbn);
-            }
-            return false;
-        } catch (const std::exception& e) {
+        } catch (...) {
             return false;
         }
     }
     
     json getAllBooks() {
-        createTableIfNeeded();
         pqxx::read_transaction r(*conn_);
         json result = json::array();
         
@@ -65,43 +69,14 @@ public:
                 }
                 result.push_back(book);
             }
-        } catch (const pqxx::sql_error& e) {
-            std::string err = e.what();
-            if (err.find("does not exist") != std::string::npos) {
-                // Если таблицы нет, создаем и пробуем снова
-                forceCreateTable();
-                return getAllBooks();
-            }
-        } catch (const std::exception& e) {
-            // Игнорируем
+        } catch (...) {
+            // Возвращаем пустой массив
         }
         
         return result;
     }
     
 private:
-    void createTableIfNeeded() {
-        if (table_created_) return;
-        forceCreateTable();
-    }
-    
-    void forceCreateTable() {
-        try {
-            pqxx::work w(*conn_);
-            w.exec(
-                "CREATE TABLE IF NOT EXISTS books ("
-                "id SERIAL PRIMARY KEY, "
-                "title varchar(100) NOT NULL, "
-                "author varchar(100) NOT NULL, "
-                "year integer NOT NULL, "
-                "isbn char(13) UNIQUE)");
-            w.commit();
-            table_created_ = true;
-        } catch (const std::exception& e) {
-            // Игнорируем
-        }
-    }
-    
     void prepareStatements() {
         conn_->prepare("insert_book",
             "INSERT INTO books (title, author, year, isbn) "
@@ -109,13 +84,11 @@ private:
     }
     
     std::shared_ptr<pqxx::connection> conn_;
-    bool table_created_ = false;
 };
 
 int main(int argc, char* argv[]) {
     try {
         if (argc != 2) {
-            std::cerr << "Usage: " << argv[0] << " <connection-string>" << std::endl;
             return EXIT_FAILURE;
         }
         
@@ -156,10 +129,7 @@ int main(int argc, char* argv[]) {
                     std::cout << response.dump() << std::endl;
                 }
                 
-            } catch (const json::parse_error& e) {
-                json response = {{"result", false}};
-                std::cout << response.dump() << std::endl;
-            } catch (const std::exception& e) {
+            } catch (...) {
                 json response = {{"result", false}};
                 std::cout << response.dump() << std::endl;
             }
@@ -167,8 +137,7 @@ int main(int argc, char* argv[]) {
         
         return EXIT_SUCCESS;
         
-    } catch (const std::exception& e) {
-        std::cerr << "Error: " << e.what() << std::endl;
+    } catch (...) {
         return EXIT_FAILURE;
     }
 }
