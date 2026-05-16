@@ -1,7 +1,9 @@
 #pragma once
 #include "tagged.h"
 #include <boost/uuid/uuid.hpp>
+#include <boost/uuid/uuid_generators.hpp>
 #include <boost/uuid/uuid_io.hpp>
+#include <sstream>
 
 namespace util {
 
@@ -24,7 +26,13 @@ inline std::string ToString(const BookId& id) {
 }
 
 inline UUID GenerateUUID() {
-    return boost::uuids::random_generator()();
+    static boost::uuids::random_generator gen;
+    return gen();
+}
+
+inline UUID UUIDFromString(const std::string& str) {
+    boost::uuids::string_generator gen;
+    return gen(str);
 }
 
 } // namespace util

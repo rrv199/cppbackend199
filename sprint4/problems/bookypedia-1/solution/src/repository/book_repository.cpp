@@ -1,6 +1,6 @@
 #include "book_repository.h"
 #include <pqxx/pqxx>
-#include <boost/uuid/uuid_io.hpp>
+#include "util/tagged_uuid.h"
 
 namespace repository {
 
@@ -26,7 +26,7 @@ public:
         
         std::vector<domain::Book> books;
         for (const auto& row : res) {
-            auto uuid = boost::uuids::string_generator()(row[0].as<std::string>());
+            auto uuid = util::UUIDFromString(row[0].as<std::string>());
             books.emplace_back(
                 domain::Book::Id(uuid), author_id,
                 row[1].as<std::string>(), row[2].as<int>());
@@ -41,8 +41,8 @@ public:
         
         std::vector<domain::Book> books;
         for (const auto& row : res) {
-            auto id_uuid = boost::uuids::string_generator()(row[0].as<std::string>());
-            auto author_uuid = boost::uuids::string_generator()(row[1].as<std::string>());
+            auto id_uuid = util::UUIDFromString(row[0].as<std::string>());
+            auto author_uuid = util::UUIDFromString(row[1].as<std::string>());
             books.emplace_back(
                 domain::Book::Id(id_uuid), domain::Author::Id(author_uuid),
                 row[2].as<std::string>(), row[3].as<int>());

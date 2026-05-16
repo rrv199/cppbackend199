@@ -1,6 +1,6 @@
 #include "author_repository.h"
 #include <pqxx/pqxx>
-#include <boost/uuid/uuid_io.hpp>
+#include "util/tagged_uuid.h"
 
 namespace repository {
 
@@ -23,7 +23,7 @@ public:
             return std::nullopt;
         }
         const auto& row = res[0];
-        auto uuid = boost::uuids::string_generator()(row[0].as<std::string>());
+        auto uuid = util::UUIDFromString(row[0].as<std::string>());
         return domain::Author(domain::Author::Id(uuid), row[1].as<std::string>());
     }
     
@@ -34,7 +34,7 @@ public:
             return std::nullopt;
         }
         const auto& row = res[0];
-        auto uuid = boost::uuids::string_generator()(row[0].as<std::string>());
+        auto uuid = util::UUIDFromString(row[0].as<std::string>());
         return domain::Author(domain::Author::Id(uuid), row[1].as<std::string>());
     }
     
@@ -43,7 +43,7 @@ public:
         auto res = r.exec("SELECT id, name FROM authors ORDER BY name");
         std::vector<domain::Author> authors;
         for (const auto& row : res) {
-            auto uuid = boost::uuids::string_generator()(row[0].as<std::string>());
+            auto uuid = util::UUIDFromString(row[0].as<std::string>());
             authors.emplace_back(domain::Author::Id(uuid), row[1].as<std::string>());
         }
         return authors;
