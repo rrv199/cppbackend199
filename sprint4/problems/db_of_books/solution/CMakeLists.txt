@@ -4,12 +4,14 @@ project(book_manager LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+# Отключаем префикс для бинарников
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
+
 include(${CMAKE_BINARY_DIR}/conanbuildinfo.cmake)
 conan_basic_setup()
 
 find_package(Boost REQUIRED)
 
-# Настройка pthread
 set(THREADS_PREFER_PTHREAD_FLAG ON)
 find_package(Threads REQUIRED)
 
@@ -17,7 +19,6 @@ add_executable(book_manager
     src/main.cpp
 )
 
-# Все линковки в одном месте
 target_link_libraries(book_manager
     ${CONAN_LIBS}
     ${Boost_LIBRARIES}
