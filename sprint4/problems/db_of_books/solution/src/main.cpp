@@ -10,14 +10,14 @@ using json = nlohmann::json;
 class BookManager {
 public:
     BookManager(const std::string& conn_string) {
-        // Парсим строку подключения
-        std::string host = "localhost";
-        std::string port = "5432";
-        std::string user = "postgres";
-        std::string password = "";
+        // Извлекаем имя базы данных
         std::string dbname;
+        std::string host;
+        std::string port;
+        std::string user;
+        std::string password;
         
-        // Простой парсинг
+        // Парсим строку подключения
         std::string temp = conn_string;
         size_t pos = temp.find("://");
         if (pos != std::string::npos) {
@@ -49,12 +49,15 @@ public:
             port = temp.substr(pos + 1);
         } else {
             host = temp;
+            port = "5432";
         }
         
-        // Создаем строку для подключения к postgres
+        if (user.empty()) user = "postgres";
+        
+        // Строка для подключения к postgres
         std::string admin_conn = "host=" + host + " port=" + port + " user=" + user + " password=" + password + " dbname=postgres";
         
-        // Пытаемся создать базу данных
+        // Создаем базу данных если её нет
         try {
             pqxx::connection admin_conn_obj(admin_conn);
             pqxx::work w(admin_conn_obj);
@@ -62,7 +65,7 @@ public:
             w.commit();
         } catch (const pqxx::sql_error& e) {
             // База данных уже существует
-        } catch (const std::exception& e) {
+        } catch (...) {
             // Игнорируем
         }
         
@@ -85,6 +88,8 @@ public:
             
             w.commit();
             return true;
+        } catch (const pqxx::sql_error& e) {
+            return false;
         } catch (const std::exception& e) {
             return false;
         }
@@ -185,8 +190,11 @@ int main(int argc, char* argv[]) {
                     std::cout << json{{"result", false}}.dump() << std::endl;
                 }
                 
+                std::cout.flush();
+                
             } catch (const std::exception& e) {
                 std::cout << json{{"result", false}}.dump() << std::endl;
+                std::cout.flush();
             }
         }
         
