@@ -1,33 +1,28 @@
-cmake_minimum_required(VERSION 3.14)
-project(bookypedia LANGUAGES CXX)
+cmake_minimum_required(VERSION 3.10)
+project(bookypedia)
 
-set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-include(${CMAKE_BINARY_DIR}/conanbuildinfo.cmake)
-conan_basic_setup()
-
-find_package(Boost REQUIRED)
-
-set(THREADS_PREFER_PTHREAD_FLAG ON)
+# Находим библиотеки в системе
 find_package(Threads REQUIRED)
+find_package(Boost REQUIRED COMPONENTS system filesystem)
 
-set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
+# Добавляем исполняемый файл
+add_executable(bookypedia src/main.cpp)
 
-add_executable(bookypedia
-    src/main.cpp
-)
-
+# Линкуем библиотеки
 target_link_libraries(bookypedia
-    ${CONAN_LIBS}
+    pqxx
+    pq
     ${Boost_LIBRARIES}
     Threads::Threads
 )
 
-target_include_directories(bookypedia PRIVATE src)
+# Устанавливаем флаги компиляции
+target_compile_options(bookypedia PRIVATE -Wall -Wextra -g)
 
-add_custom_command(TARGET bookypedia POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different
-        $<TARGET_FILE:bookypedia>
-        ${CMAKE_BINARY_DIR}/bookypedia
+# Добавляем пути для include
+target_include_directories(bookypedia PRIVATE
+    ${Boost_INCLUDE_DIRS}
 )

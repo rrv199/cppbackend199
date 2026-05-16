@@ -180,6 +180,71 @@ int main() {
                     cout << "Failed to delete book" << endl;
                 }
                 
+            } else if (cmd == "EditBook") {
+                string title = trim(line.substr(cmd.length()));
+                if (title.empty()) continue;
+                
+                try {
+                    pqxx::connection conn(db_url);
+                    pqxx::nontransaction t(conn);
+                    
+                    auto res = t.exec_params("SELECT id, title, publication_year FROM books WHERE title = $1", title.c_str());
+                    if (res.empty()) {
+                        cout << "Book not found" << endl;
+                        continue;
+                    }
+                    
+                    string book_id = res[0][0].as<string>();
+                    string current_title = res[0][1].as<string>();
+                    int current_year = res[0][2].as<int>();
+                    
+                    auto tag_res = t.exec_params("SELECT tag FROM book_tags WHERE book_id = $1 ORDER BY tag", book_id);
+                    string current_tags;
+                    for (size_t i = 0; i < tag_res.size(); ++i) {
+                        if (i > 0) current_tags += ", ";
+                        current_tags += tag_res[i][0].as<string>();
+                    }
+                    
+                    cout << "Enter new title or empty line to use the current one (" << current_title << "):" << endl;
+                    string new_title;
+                    getline(cin, new_title);
+                    new_title = trim(new_title);
+                    if (new_title.empty()) new_title = current_title;
+                    
+                    cout << "Enter publication year or empty line to use the current one (" << current_year << "):" << endl;
+                    string year_str;
+                    getline(cin, year_str);
+                    int new_year = current_year;
+                    if (!year_str.empty()) new_year = stoi(year_str);
+                    
+                    cout << "Enter tags (current tags: " << (current_tags.empty() ? "none" : current_tags) << "):" << endl;
+                    string tags_line;
+                    getline(cin, tags_line);
+                    
+                    vector<string> new_tags;
+                    if (tags_line.empty()) {
+                        for (const auto& row : tag_res) {
+                            new_tags.push_back(row[0].as<string>());
+                        }
+                    } else {
+                        new_tags = parse_tags(tags_line);
+                    }
+                    
+                    pqxx::work w(conn);
+                    w.exec_params("UPDATE books SET title = $1, publication_year = $2 WHERE id = $3", 
+                                  new_title, new_year, book_id);
+                    w.exec_params("DELETE FROM book_tags WHERE book_id = $1", book_id);
+                    for (const auto& tag : new_tags) {
+                        if (!tag.empty()) {
+                            w.exec_params("INSERT INTO book_tags (book_id, tag) VALUES ($1, $2)", book_id, tag);
+                        }
+                    }
+                    w.commit();
+                } catch (const exception& e) {
+                    cerr << "EditBook error: " << e.what() << endl;
+                    cout << "Book not found" << endl;
+                }
+                
             } else if (cmd == "AddBook") {
                 int year;
                 iss >> year;

@@ -159,27 +159,6 @@ int main() {
                     cerr << "ShowBook error: " << e.what() << endl;
                 }
                 
-            } else if (cmd == "DeleteBook") {
-                string title = trim(line.substr(cmd.length()));
-                if (title.empty()) continue;
-                
-                try {
-                    pqxx::connection conn(db_url);
-                    pqxx::work w(conn);
-                    
-                    auto res = w.exec_params("SELECT id FROM books WHERE title = $1", title.c_str());
-                    if (res.empty()) {
-                        cout << "Failed to delete book" << endl;
-                        continue;
-                    }
-                    
-                    w.exec_params("DELETE FROM books WHERE title = $1", title.c_str());
-                    w.commit();
-                } catch (const exception& e) {
-                    cerr << "DeleteBook error: " << e.what() << endl;
-                    cout << "Failed to delete book" << endl;
-                }
-                
             } else if (cmd == "AddBook") {
                 int year;
                 iss >> year;

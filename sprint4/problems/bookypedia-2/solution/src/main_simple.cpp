@@ -124,77 +124,11 @@ int main() {
                     }
                 } catch (...) {}
                 
-            } else if (cmd == "ShowBook") {
-                string title = trim(line.substr(cmd.length()));
-                if (title.empty()) continue;
-                
-                try {
-                    pqxx::connection conn(db_url);
-                    pqxx::nontransaction t(conn);
-                    
-                    auto res = t.exec_params(
-                        "SELECT b.id, b.title, a.name, b.publication_year "
-                        "FROM books b JOIN authors a ON b.author_id = a.id "
-                        "WHERE b.title = $1", title.c_str());
-                    
-                    if (res.empty()) {
-                        continue;
-                    }
-                    
-                    const auto& row = res[0];
-                    cout << "Title: " << row[1].as<string>() << endl;
-                    cout << "Author: " << row[2].as<string>() << endl;
-                    cout << "Publication year: " << row[3].as<int>() << endl;
-                    
-                    auto tag_res = t.exec_params("SELECT tag FROM book_tags WHERE book_id = $1 ORDER BY tag", row[0].as<string>());
-                    if (!tag_res.empty()) {
-                        cout << "Tags: ";
-                        for (size_t j = 0; j < tag_res.size(); ++j) {
-                            if (j > 0) cout << ", ";
-                            cout << tag_res[j][0].as<string>();
-                        }
-                        cout << endl;
-                    }
-                } catch (const exception& e) {
-                    cerr << "ShowBook error: " << e.what() << endl;
-                }
-                
-            } else if (cmd == "DeleteBook") {
-                string title = trim(line.substr(cmd.length()));
-                if (title.empty()) continue;
-                
-                try {
-                    pqxx::connection conn(db_url);
-                    pqxx::work w(conn);
-                    
-                    auto res = w.exec_params("SELECT id FROM books WHERE title = $1", title.c_str());
-                    if (res.empty()) {
-                        cout << "Failed to delete book" << endl;
-                        continue;
-                    }
-                    
-                    w.exec_params("DELETE FROM books WHERE title = $1", title.c_str());
-                    w.commit();
-                } catch (const exception& e) {
-                    cerr << "DeleteBook error: " << e.what() << endl;
-                    cout << "Failed to delete book" << endl;
-                }
-                
             } else if (cmd == "AddBook") {
                 int year;
                 iss >> year;
                 string title = trim(line.substr(cmd.length() + to_string(year).length() + 1));
                 if (title.empty()) continue;
-                
-                // Проверка на дубликат
-                {
-                    pqxx::connection conn(db_url);
-                    pqxx::nontransaction t(conn);
-                    auto check = t.exec_params("SELECT id FROM books WHERE title = $1 AND publication_year = $2", title.c_str(), year);
-                    if (!check.empty()) {
-                        continue;
-                    }
-                }
                 
                 cout << "Enter author name or empty line to select from list:" << endl;
                 string author_input;
