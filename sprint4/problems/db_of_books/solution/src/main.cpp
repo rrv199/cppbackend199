@@ -9,60 +9,10 @@ using json = nlohmann::json;
 
 class BookManager {
 public:
-    BookManager(const std::string& conn_string) {
-        // Извлекаем имя базы данных из строки подключения
-        std::string dbname;
-        std::string base_conn_string;
-        
-        // Парсим строку подключения
-        size_t last_slash = conn_string.rfind('/');
-        if (last_slash != std::string::npos) {
-            dbname = conn_string.substr(last_slash + 1);
-            base_conn_string = conn_string.substr(0, last_slash + 1) + "postgres";
-        } else {
-            dbname = "postgres";
-            base_conn_string = conn_string;
-        }
-        
-        // Проверяем, существует ли база данных
-        bool db_exists = false;
-        try {
-            pqxx::connection test_conn(conn_string);
-            db_exists = true;
-        } catch (const pqxx::broken_connection& e) {
-            db_exists = false;
-        }
-        
-        if (!db_exists) {
-            // Создаем базу данных
-            try {
-                pqxx::connection admin_conn(base_conn_string);
-                pqxx::work w(admin_conn);
-                w.exec("CREATE DATABASE " + dbname);
-                w.commit();
-            } catch (const std::exception& e) {
-                // Не удалось создать базу данных
-            }
-        }
-        
-        // Подключаемся к базе данных
-        conn_ = std::make_shared<pqxx::connection>(conn_string);
+    BookManager(const std::string& conn_string) 
+        : conn_(std::make_shared<pqxx::connection>(conn_string)) {
         prepareStatements();
-        
-        // Создаем таблицу
-        try {
-            pqxx::work w(*conn_);
-            w.exec(
-                "CREATE TABLE IF NOT EXISTS books ("
-                "id SERIAL PRIMARY KEY, "
-                "title varchar(100) NOT NULL, "
-                "author varchar(100) NOT NULL, "
-                "year integer NOT NULL, "
-                "isbn char(13) UNIQUE)");
-            w.commit();
-        } catch (...) {
-            // Игнорируем
-        }
+        createTable();
     }
     
     bool addBook(const std::string& title, const std::string& author, 
@@ -78,8 +28,6 @@ public:
             
             w.commit();
             return true;
-        } catch (const pqxx::sql_error& e) {
-            return false;
         } catch (...) {
             return false;
         }
@@ -107,13 +55,32 @@ public:
                 }
                 result.push_back(book);
             }
+        } catch (const pqxx::sql_error& e) {
+            // Таблицы нет - создаем
+            createTable();
         } catch (...) {
-            // Возвращаем пустой массив
+            // Игнорируем
         }
         return result;
     }
     
 private:
+    void createTable() {
+        try {
+            pqxx::work w(*conn_);
+            w.exec(
+                "CREATE TABLE IF NOT EXISTS books ("
+                "id SERIAL PRIMARY KEY, "
+                "title varchar(100) NOT NULL, "
+                "author varchar(100) NOT NULL, "
+                "year integer NOT NULL, "
+                "isbn char(13) UNIQUE)");
+            w.commit();
+        } catch (...) {
+            // Игнорируем
+        }
+    }
+    
     void prepareStatements() {
         conn_->prepare("insert_book",
             "INSERT INTO books (title, author, year, isbn) "
@@ -124,11 +91,11 @@ private:
 };
 
 int main(int argc, char* argv[]) {
+    if (argc != 2) {
+        return EXIT_FAILURE;
+    }
+    
     try {
-        if (argc != 2) {
-            return EXIT_FAILURE;
-        }
-        
         BookManager manager(argv[1]);
         std::string line;
         
@@ -151,8 +118,7 @@ int main(int argc, char* argv[]) {
                     }
                     
                     bool result = manager.addBook(title, author, year, isbn);
-                    json response = {{"result", result}};
-                    std::cout << response.dump() << std::endl;
+                    std::cout << json{{"result", result}}.dump() << std::endl;
                     
                 } else if (action == "all_books") {
                     json books = manager.getAllBooks();
@@ -162,13 +128,11 @@ int main(int argc, char* argv[]) {
                     break;
                     
                 } else {
-                    json response = {{"result", false}};
-                    std::cout << response.dump() << std::endl;
+                    std::cout << json{{"result", false}}.dump() << std::endl;
                 }
                 
             } catch (const std::exception& e) {
-                json response = {{"result", false}};
-                std::cout << response.dump() << std::endl;
+                std::cout << json{{"result", false}}.dump() << std::endl;
             }
         }
         
