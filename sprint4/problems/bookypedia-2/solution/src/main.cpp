@@ -70,7 +70,6 @@ vector<BookInfo> get_books(pqxx::connection& conn) {
         books.push_back(book);
     }
     
-    // Get tags for each book in a separate transaction
     for (auto& book : books) {
         pqxx::read_transaction r2(conn);
         auto tag_res = r2.exec_params("SELECT tag FROM book_tags WHERE book_id = $1 ORDER BY tag", book.id);
@@ -116,6 +115,13 @@ vector<string> parse_tags(const string& input) {
     return result;
 }
 
+string trim(const string& s) {
+    size_t start = s.find_first_not_of(" \t");
+    if (start == string::npos) return "";
+    size_t end = s.find_last_not_of(" \t");
+    return s.substr(start, end - start + 1);
+}
+
 int main() {
     try {
         const char* db_url = getenv("BOOKYPEDIA_DB_URL");
@@ -124,7 +130,6 @@ int main() {
             return 1;
         }
         
-        // Initialize tables
         {
             pqxx::connection conn(db_url);
             ensure_tables(conn);
@@ -139,12 +144,7 @@ int main() {
             iss >> cmd;
             
             if (cmd == "AddAuthor") {
-                string name;
-                getline(iss, name);
-                size_t start = name.find_first_not_of(" \t");
-                if (start != string::npos) name = name.substr(start);
-                size_t end = name.find_last_not_of(" \t");
-                if (end != string::npos) name = name.substr(0, end + 1);
+                string name = trim(line.substr(cmd.length()));
                 
                 if (name.empty()) {
                     cout << "Failed to add author" << endl;
@@ -157,7 +157,6 @@ int main() {
                     w.exec_params("INSERT INTO authors (id, name) VALUES ($1, $2)",
                                   generate_uuid(), name);
                     w.commit();
-                    cout << "Author added successfully" << endl;
                 } catch (const exception& e) {
                     cout << "Failed to add author" << endl;
                 }
@@ -170,12 +169,7 @@ int main() {
                 }
                 
             } else if (cmd == "DeleteAuthor") {
-                string name;
-                getline(iss, name);
-                size_t start = name.find_first_not_of(" \t");
-                if (start != string::npos) name = name.substr(start);
-                size_t end = name.find_last_not_of(" \t");
-                if (end != string::npos) name = name.substr(0, end + 1);
+                string name = trim(line.substr(cmd.length()));
                 
                 if (name.empty()) {
                     pqxx::connection conn(db_url);
@@ -210,12 +204,7 @@ int main() {
                 }
                 
             } else if (cmd == "EditAuthor") {
-                string name;
-                getline(iss, name);
-                size_t start = name.find_first_not_of(" \t");
-                if (start != string::npos) name = name.substr(start);
-                size_t end = name.find_last_not_of(" \t");
-                if (end != string::npos) name = name.substr(0, end + 1);
+                string name = trim(line.substr(cmd.length()));
                 
                 if (name.empty()) {
                     pqxx::connection conn(db_url);
@@ -240,10 +229,7 @@ int main() {
                 cout << "Enter new name:" << endl;
                 string new_name;
                 getline(cin, new_name);
-                size_t start = new_name.find_first_not_of(" \t");
-                if (start != string::npos) new_name = new_name.substr(start);
-                size_t end = new_name.find_last_not_of(" \t");
-                if (end != string::npos) new_name = new_name.substr(0, end + 1);
+                new_name = trim(new_name);
                 
                 try {
                     pqxx::connection conn(db_url);
@@ -267,12 +253,7 @@ int main() {
                 }
                 
             } else if (cmd == "ShowBook") {
-                string title;
-                getline(iss, title);
-                size_t start = title.find_first_not_of(" \t");
-                if (start != string::npos) title = title.substr(start);
-                size_t end = title.find_last_not_of(" \t");
-                if (end != string::npos) title = title.substr(0, end + 1);
+                string title = trim(line.substr(cmd.length()));
                 
                 pqxx::connection conn(db_url);
                 auto books = get_books(conn);
@@ -333,12 +314,7 @@ int main() {
                 }
                 
             } else if (cmd == "DeleteBook") {
-                string title;
-                getline(iss, title);
-                size_t start = title.find_first_not_of(" \t");
-                if (start != string::npos) title = title.substr(start);
-                size_t end = title.find_last_not_of(" \t");
-                if (end != string::npos) title = title.substr(0, end + 1);
+                string title = trim(line.substr(cmd.length()));
                 
                 pqxx::connection conn(db_url);
                 auto books = get_books(conn);
@@ -398,22 +374,14 @@ int main() {
             } else if (cmd == "AddBook") {
                 int year;
                 iss >> year;
-                string title;
-                getline(iss, title);
-                size_t start = title.find_first_not_of(" \t");
-                if (start != string::npos) title = title.substr(start);
-                size_t end = title.find_last_not_of(" \t");
-                if (end != string::npos) title = title.substr(0, end + 1);
+                string title = trim(line.substr(cmd.length() + to_string(year).length()));
                 
                 if (title.empty()) continue;
                 
                 cout << "Enter author name or empty line to select from list:" << endl;
                 string author_input;
                 getline(cin, author_input);
-                start = author_input.find_first_not_of(" \t");
-                if (start != string::npos) author_input = author_input.substr(start);
-                end = author_input.find_last_not_of(" \t");
-                if (end != string::npos) author_input = author_input.substr(0, end + 1);
+                author_input = trim(author_input);
                 
                 string author_id;
                 
@@ -427,6 +395,7 @@ int main() {
                         cout << "No author found. Do you want to add " << author_input << " (y/n)?" << endl;
                         string answer;
                         getline(cin, answer);
+                        answer = trim(answer);
                         if (answer != "y" && answer != "Y") {
                             cout << "Failed to add book" << endl;
                             continue;
