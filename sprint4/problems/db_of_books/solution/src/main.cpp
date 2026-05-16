@@ -12,16 +12,12 @@ public:
     BookManager(const std::string& conn_string) 
         : conn_(std::make_shared<pqxx::connection>(conn_string)) {
         prepareStatements();
-        // Принудительно создаем таблицу при запуске
-        createTable();
     }
     
     bool addBook(const std::string& title, const std::string& author, 
                  int year, const std::optional<std::string>& isbn) {
         try {
-            // Убеждаемся, что таблица существует перед вставкой
             ensureTable();
-            
             pqxx::work w(*conn_);
             
             if (isbn.has_value()) {
@@ -69,7 +65,9 @@ public:
     }
     
 private:
-    void createTable() {
+    void ensureTable() {
+        if (table_checked_) return;
+        
         try {
             pqxx::work w(*conn_);
             w.exec(
@@ -80,15 +78,9 @@ private:
                 "year integer NOT NULL, "
                 "isbn char(13) UNIQUE)");
             w.commit();
-            table_exists_ = true;
+            table_checked_ = true;
         } catch (const std::exception& e) {
-            table_exists_ = false;
-        }
-    }
-    
-    void ensureTable() {
-        if (!table_exists_) {
-            createTable();
+            // Игнорируем ошибки
         }
     }
     
@@ -99,7 +91,7 @@ private:
     }
     
     std::shared_ptr<pqxx::connection> conn_;
-    bool table_exists_ = false;
+    bool table_checked_ = false;
 };
 
 int main(int argc, char* argv[]) {
