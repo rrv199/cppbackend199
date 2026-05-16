@@ -12,12 +12,11 @@ public:
     BookManager(const std::string& conn_string) 
         : conn_(std::make_shared<pqxx::connection>(conn_string)) {
         prepareStatements();
+        createTableIfNotExists();
     }
     
     bool addBook(const std::string& title, const std::string& author, 
                  int year, const std::optional<std::string>& isbn) {
-        ensureTableExists();
-        
         try {
             pqxx::work w(*conn_);
             
@@ -37,7 +36,6 @@ public:
     }
     
     json getAllBooks() {
-        ensureTableExists();
         pqxx::read_transaction r(*conn_);
         json result = json::array();
         
@@ -68,17 +66,13 @@ public:
     }
     
 private:
-    void ensureTableExists() {
-        if (table_exists_) return;
-        
+    void createTableIfNotExists() {
         try {
             pqxx::work w(*conn_);
             w.exec_prepared("create_table");
             w.commit();
-            table_exists_ = true;
         } catch (const std::exception& e) {
-            // Таблица может уже существовать
-            table_exists_ = true;
+            std::cerr << "Warning: " << e.what() << std::endl;
         }
     }
     
@@ -97,7 +91,6 @@ private:
     }
     
     std::shared_ptr<pqxx::connection> conn_;
-    bool table_exists_ = false;
 };
 
 int main(int argc, char* argv[]) {
