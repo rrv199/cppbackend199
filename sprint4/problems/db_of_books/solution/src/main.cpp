@@ -9,8 +9,34 @@ using json = nlohmann::json;
 
 class BookManager {
 public:
-    BookManager(const std::string& conn_string) 
-        : conn_(std::make_shared<pqxx::connection>(conn_string)) {
+    BookManager(const std::string& conn_string) {
+        // Извлекаем имя базы данных
+        std::string dbname;
+        std::string base_conn;
+        
+        size_t last_slash = conn_string.rfind('/');
+        if (last_slash != std::string::npos) {
+            dbname = conn_string.substr(last_slash + 1);
+            base_conn = conn_string.substr(0, last_slash + 1) + "postgres";
+        } else {
+            dbname = "postgres";
+            base_conn = conn_string;
+        }
+        
+        // Создаем базу данных если её нет
+        try {
+            pqxx::connection admin_conn(base_conn);
+            pqxx::work w(admin_conn);
+            w.exec("CREATE DATABASE " + dbname);
+            w.commit();
+        } catch (const pqxx::sql_error& e) {
+            // База данных уже существует - игнорируем
+        } catch (...) {
+            // Игнорируем другие ошибки
+        }
+        
+        // Подключаемся к базе данных
+        conn_ = std::make_shared<pqxx::connection>(conn_string);
         prepareStatements();
         createTableIfNotExists();
     }
@@ -74,7 +100,7 @@ private:
                 "isbn char(13) UNIQUE)");
             w.commit();
         } catch (const std::exception& e) {
-            // Таблица уже существует или другая ошибка
+            // Игнорируем
         }
     }
     
