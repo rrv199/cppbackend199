@@ -65,6 +65,7 @@ int main() {
             return 1;
         }
         
+        // Initialize tables - отдельное соединение
         {
             pqxx::connection conn(db_url);
             pqxx::work w(conn);
