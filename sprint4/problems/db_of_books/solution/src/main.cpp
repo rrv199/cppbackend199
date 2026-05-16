@@ -10,70 +10,9 @@ using json = nlohmann::json;
 class BookManager {
 public:
     BookManager(const std::string& conn_string) {
-        // Извлекаем имя базы данных
-        std::string dbname;
-        std::string host;
-        std::string port;
-        std::string user;
-        std::string password;
-        
-        // Парсим строку подключения
-        std::string temp = conn_string;
-        size_t pos = temp.find("://");
-        if (pos != std::string::npos) {
-            temp = temp.substr(pos + 3);
-        }
-        
-        pos = temp.find('/');
-        if (pos != std::string::npos) {
-            dbname = temp.substr(pos + 1);
-            temp = temp.substr(0, pos);
-        }
-        
-        pos = temp.find('@');
-        if (pos != std::string::npos) {
-            std::string userpass = temp.substr(0, pos);
-            temp = temp.substr(pos + 1);
-            pos = userpass.find(':');
-            if (pos != std::string::npos) {
-                user = userpass.substr(0, pos);
-                password = userpass.substr(pos + 1);
-            } else {
-                user = userpass;
-            }
-        }
-        
-        pos = temp.find(':');
-        if (pos != std::string::npos) {
-            host = temp.substr(0, pos);
-            port = temp.substr(pos + 1);
-        } else {
-            host = temp;
-            port = "5432";
-        }
-        
-        if (user.empty()) user = "postgres";
-        
-        // Строка для подключения к postgres
-        std::string admin_conn = "host=" + host + " port=" + port + " user=" + user + " password=" + password + " dbname=postgres";
-        
-        // Создаем базу данных если её нет (вне транзакции)
-        try {
-            pqxx::connection admin_conn_obj(admin_conn);
-            // Не используем транзакцию для CREATE DATABASE
-            pqxx::nontransaction nt(admin_conn_obj);
-            nt.exec("CREATE DATABASE " + dbname);
-            nt.commit();
-        } catch (const pqxx::sql_error& e) {
-            // База данных уже существует - игнорируем
-        } catch (...) {
-            // Игнорируем
-        }
-        
-        // Подключаемся к нужной базе
         conn_ = std::make_shared<pqxx::connection>(conn_string);
-        prepareStatements();
         createTableIfNotExists();
+        prepareStatements();
     }
     
     bool addBook(const std::string& title, const std::string& author, 
@@ -89,8 +28,6 @@ public:
             
             w.commit();
             return true;
-        } catch (const pqxx::sql_error& e) {
-            return false;
         } catch (const std::exception& e) {
             return false;
         }
