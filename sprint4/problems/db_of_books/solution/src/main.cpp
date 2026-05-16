@@ -12,11 +12,12 @@ public:
     BookManager(const std::string& conn_string) 
         : conn_(std::make_shared<pqxx::connection>(conn_string)) {
         prepareStatements();
-        createTableIfNotExists();
     }
     
     bool addBook(const std::string& title, const std::string& author, 
                  int year, const std::optional<std::string>& isbn) {
+        ensureTableExists();
+        
         try {
             pqxx::work w(*conn_);
             
@@ -29,11 +30,6 @@ public:
             w.commit();
             return true;
         } catch (const pqxx::sql_error& e) {
-            // Если таблицы нет, создаем и пробуем снова
-            if (std::string(e.what()).find("does not exist") != std::string::npos) {
-                createTableIfNotExists();
-                return addBook(title, author, year, isbn);
-            }
             return false;
         } catch (const std::exception& e) {
             return false;
@@ -41,6 +37,7 @@ public:
     }
     
     json getAllBooks() {
+        ensureTableExists();
         pqxx::read_transaction r(*conn_);
         json result = json::array();
         
@@ -63,18 +60,28 @@ public:
                 }
                 result.push_back(book);
             }
-        } catch (const pqxx::sql_error& e) {
-            // Таблицы нет - создаем и пробуем снова
-            if (std::string(e.what()).find("does not exist") != std::string::npos) {
-                createTableIfNotExists();
-                return getAllBooks();
-            }
+        } catch (const std::exception& e) {
+            // Игнорируем ошибки
         }
         
         return result;
     }
     
 private:
+    void ensureTableExists() {
+        if (table_exists_) return;
+        
+        try {
+            pqxx::work w(*conn_);
+            w.exec_prepared("create_table");
+            w.commit();
+            table_exists_ = true;
+        } catch (const std::exception& e) {
+            // Таблица может уже существовать
+            table_exists_ = true;
+        }
+    }
+    
     void prepareStatements() {
         conn_->prepare("create_table",
             "CREATE TABLE IF NOT EXISTS books ("
@@ -89,17 +96,8 @@ private:
             "VALUES ($1, $2, $3, $4)");
     }
     
-    void createTableIfNotExists() {
-        try {
-            pqxx::work w(*conn_);
-            w.exec_prepared("create_table");
-            w.commit();
-        } catch (const std::exception& e) {
-            std::cerr << "Error creating table: " << e.what() << std::endl;
-        }
-    }
-    
     std::shared_ptr<pqxx::connection> conn_;
+    bool table_exists_ = false;
 };
 
 int main(int argc, char* argv[]) {
