@@ -76,7 +76,6 @@ int main() {
             w.exec("CREATE TABLE IF NOT EXISTS books (id uuid PRIMARY KEY, author_id uuid NOT NULL REFERENCES authors(id) ON DELETE CASCADE, title varchar(100) NOT NULL, publication_year integer NOT NULL);");
             w.exec("CREATE TABLE IF NOT EXISTS book_tags (book_id uuid NOT NULL REFERENCES books(id) ON DELETE CASCADE, tag varchar(30) NOT NULL, PRIMARY KEY (book_id, tag));");
             w.commit();
-                    cout << "DEBUG: commit successful" << endl;
         }
         
         string line;
@@ -98,7 +97,6 @@ int main() {
                     pqxx::work w(conn);
                     w.exec_params("INSERT INTO authors (id, name) VALUES ($1, $2)", generate_uuid(), name);
                     w.commit();
-                    cout << "DEBUG: commit successful" << endl;
                 } catch (...) {
                     cout << "Failed to add author" << endl;
                 }
@@ -146,7 +144,6 @@ int main() {
                     pqxx::work w(conn);
                     auto res = w.exec_params("DELETE FROM authors WHERE name = $1 RETURNING id", name);
                     w.commit();
-                    cout << "DEBUG: commit successful" << endl;
                     if (res.empty()) cout << "Failed to delete author" << endl;
                 } catch (...) {
                     cout << "Failed to delete author" << endl;
@@ -188,7 +185,6 @@ int main() {
                     pqxx::work w(conn);
                     auto res = w.exec_params("UPDATE authors SET name = $1 WHERE name = $2 RETURNING id", new_name, name);
                     w.commit();
-                    cout << "DEBUG: commit successful" << endl;
                     if (res.empty()) cout << "Failed to edit author" << endl;
                 } catch (...) {
                     cout << "Failed to edit author" << endl;
@@ -242,7 +238,6 @@ int main() {
                         }
                     }
                     
-                    // Show all books for selection
                     auto all_books = t.exec(
                         "SELECT b.id, b.title, a.name, b.publication_year "
                         "FROM books b JOIN authors a ON b.author_id = a.id "
@@ -311,12 +306,10 @@ int main() {
                             pqxx::work w(conn);
                             w.exec_params("DELETE FROM books WHERE id = $1", book_id);
                             w.commit();
-                    cout << "DEBUG: commit successful" << endl;
                             continue;
                         }
                     }
                     
-                    // Show all books for selection
                     auto all_books = t.exec(
                         "SELECT id, title, a.name, publication_year "
                         "FROM books b JOIN authors a ON b.author_id = a.id "
@@ -348,7 +341,6 @@ int main() {
                     pqxx::work w(conn);
                     w.exec_params("DELETE FROM books WHERE id = $1", book_ids[choice - 1]);
                     w.commit();
-                    cout << "DEBUG: commit successful" << endl;
                 } catch (...) {
                     cout << "Failed to delete book" << endl;
                 }
@@ -363,10 +355,7 @@ int main() {
                     vector<pair<string, string>> books_list;
                     if (!title.empty()) {
                         auto res = t.exec_params(
-                            "SELECT b.id, b.title, a.name, b.publication_year "
-                            "FROM books b JOIN authors a ON b.author_id = a.id "
-                            "WHERE b.title = $1 "
-                            "ORDER BY b.title, a.name, b.publication_year", title);
+                            "SELECT b.id, b.title FROM books b WHERE b.title = $1", title);
                         for (const auto& row : res) {
                             books_list.push_back({row[0].as<string>(), row[1].as<string>()});
                         }
@@ -384,11 +373,8 @@ int main() {
                         book_id = books_list[0].first;
                         current_title = books_list[0].second;
                     } else {
-                        // Show all books for selection
                         auto all_books = t.exec(
-                            "SELECT id, title, a.name, publication_year "
-                            "FROM books b JOIN authors a ON b.author_id = a.id "
-                            "ORDER BY title, a.name, publication_year");
+                            "SELECT id, title FROM books ORDER BY title");
                         
                         if (all_books.empty()) {
                             cout << "Book not found" << endl;
@@ -399,8 +385,10 @@ int main() {
                         vector<pair<string, string>> select_books;
                         for (size_t i = 0; i < all_books.size(); ++i) {
                             const auto& row = all_books[i];
-                            cout << i + 1 << " " << row[1].as<string>() << " by " 
-                                 << row[2].as<string>() << ", " << row[3].as<int>() << endl;
+                            auto author_res = t.exec_params(
+                                "SELECT a.name FROM authors a JOIN books b ON b.author_id = a.id WHERE b.id = $1", row[0].as<string>());
+                            string author_name = author_res.empty() ? "" : author_res[0][0].as<string>();
+                            cout << i + 1 << " " << row[1].as<string>() << " by " << author_name << endl;
                             select_books.push_back({row[0].as<string>(), row[1].as<string>()});
                         }
                         cout << "Enter the book # or empty line to cancel:" << endl;
@@ -440,7 +428,6 @@ int main() {
                     
                     vector<string> new_tags;
                     if (tags_line.empty()) {
-                        // Keep existing tags
                         for (const auto& row : tag_res) {
                             new_tags.push_back(row[0].as<string>());
                         }
@@ -455,7 +442,6 @@ int main() {
                         w.exec_params("INSERT INTO book_tags (book_id, tag) VALUES ($1, $2)", book_id, tag);
                     }
                     w.commit();
-                    cout << "DEBUG: commit successful" << endl;
                 } catch (...) {
                     cout << "Book not found" << endl;
                 }
@@ -491,7 +477,6 @@ int main() {
                             pqxx::work w(conn);
                             w.exec_params("INSERT INTO authors (id, name) VALUES ($1, $2)", author_id, author_input);
                             w.commit();
-                    cout << "DEBUG: commit successful" << endl;
                         }
                     } catch (...) {
                         cout << "Failed to add book" << endl;
@@ -543,7 +528,6 @@ int main() {
                         w.exec_params("INSERT INTO book_tags (book_id, tag) VALUES ($1, $2)", book_id, tag);
                     }
                     w.commit();
-                    cout << "DEBUG: commit successful" << endl;
                 } catch (...) {
                     cout << "Failed to add book" << endl;
                 }
