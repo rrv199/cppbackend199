@@ -39,23 +39,27 @@ public:
         pqxx::read_transaction r(*conn_);
         json result = json::array();
         
-        pqxx::result res = r.exec(
-            "SELECT id, title, author, year, isbn FROM books "
-            "ORDER BY year DESC, title ASC, author ASC, isbn ASC");
-        
-        for (const auto& row : res) {
-            json book;
-            book["id"] = row[0].as<int>();
-            book["title"] = row[1].as<std::string>();
-            book["author"] = row[2].as<std::string>();
-            book["year"] = row[3].as<int>();
+        try {
+            pqxx::result res = r.exec(
+                "SELECT id, title, author, year, isbn FROM books "
+                "ORDER BY year DESC, title ASC, author ASC, isbn ASC");
             
-            if (row[4].is_null()) {
-                book["ISBN"] = nullptr;
-            } else {
-                book["ISBN"] = row[4].as<std::string>();
+            for (const auto& row : res) {
+                json book;
+                book["id"] = row[0].as<int>();
+                book["title"] = row[1].as<std::string>();
+                book["author"] = row[2].as<std::string>();
+                book["year"] = row[3].as<int>();
+                
+                if (row[4].is_null()) {
+                    book["ISBN"] = nullptr;
+                } else {
+                    book["ISBN"] = row[4].as<std::string>();
+                }
+                result.push_back(book);
             }
-            result.push_back(book);
+        } catch (const pqxx::sql_error& e) {
+            // Таблицы нет - возвращаем пустой массив
         }
         
         return result;
@@ -77,9 +81,13 @@ private:
     }
     
     void createTableIfNotExists() {
-        pqxx::work w(*conn_);
-        w.exec_prepared("create_table");
-        w.commit();
+        try {
+            pqxx::work w(*conn_);
+            w.exec_prepared("create_table");
+            w.commit();
+        } catch (const std::exception& e) {
+            std::cerr << "Error creating table: " << e.what() << std::endl;
+        }
     }
     
     std::shared_ptr<pqxx::connection> conn_;
