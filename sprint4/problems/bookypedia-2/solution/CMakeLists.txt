@@ -4,13 +4,16 @@ project(bookypedia LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+# Устанавливаем выходную директорию прямо здесь, до Conan
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
+
 # Подключаем Conan (если есть)
 if(EXISTS ${CMAKE_BINARY_DIR}/conanbuildinfo.cmake)
     include(${CMAKE_BINARY_DIR}/conanbuildinfo.cmake)
     conan_basic_setup()
 endif()
 
-# Добавляем исполняемый файл в корень build, а не в bin
+# Добавляем исполняемый файл
 add_executable(bookypedia src/main.cpp)
 
 # Линкуем библиотеки
@@ -41,3 +44,11 @@ target_compile_options(bookypedia PRIVATE -Wall -Wextra -g)
 # Устанавливаем пути для поиска заголовочных файлов Boost (header-only)
 find_package(Boost REQUIRED)
 target_include_directories(bookypedia PRIVATE ${Boost_INCLUDE_DIRS})
+
+# Создаем символическую ссылку для совместимости (на всякий случай)
+add_custom_command(TARGET bookypedia POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E create_symlink
+        ${CMAKE_BINARY_DIR}/bookypedia
+        ${CMAKE_BINARY_DIR}/bin/bookypedia
+    WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
+)
