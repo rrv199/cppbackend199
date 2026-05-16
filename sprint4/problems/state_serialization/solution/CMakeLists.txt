@@ -38,3 +38,9 @@ target_compile_definitions(serialization_tests PRIVATE CATCH_CONFIG_MAIN)
 
 enable_testing()
 add_test(NAME SerializationTests COMMAND serialization_tests)
+
+# Также создаем game_server как алиас
+add_custom_target(game_server ALL
+    COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:serialization_tests> ${CMAKE_BINARY_DIR}/game_server
+    DEPENDS serialization_tests
+)
