@@ -29,6 +29,11 @@ public:
             w.commit();
             return true;
         } catch (const pqxx::sql_error& e) {
+            // Если таблицы нет, создаем и пробуем снова
+            if (std::string(e.what()).find("does not exist") != std::string::npos) {
+                createTableIfNotExists();
+                return addBook(title, author, year, isbn);
+            }
             return false;
         } catch (const std::exception& e) {
             return false;
@@ -59,7 +64,11 @@ public:
                 result.push_back(book);
             }
         } catch (const pqxx::sql_error& e) {
-            // Таблицы нет - возвращаем пустой массив
+            // Таблицы нет - создаем и пробуем снова
+            if (std::string(e.what()).find("does not exist") != std::string::npos) {
+                createTableIfNotExists();
+                return getAllBooks();
+            }
         }
         
         return result;
