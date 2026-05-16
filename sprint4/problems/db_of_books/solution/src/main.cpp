@@ -10,32 +10,63 @@ using json = nlohmann::json;
 class BookManager {
 public:
     BookManager(const std::string& conn_string) {
-        // Извлекаем имя базы данных
+        // Парсим строку подключения
+        std::string host = "localhost";
+        std::string port = "5432";
+        std::string user = "postgres";
+        std::string password = "";
         std::string dbname;
-        std::string base_conn;
         
-        size_t last_slash = conn_string.rfind('/');
-        if (last_slash != std::string::npos) {
-            dbname = conn_string.substr(last_slash + 1);
-            base_conn = conn_string.substr(0, last_slash + 1) + "postgres";
-        } else {
-            dbname = "postgres";
-            base_conn = conn_string;
+        // Простой парсинг
+        std::string temp = conn_string;
+        size_t pos = temp.find("://");
+        if (pos != std::string::npos) {
+            temp = temp.substr(pos + 3);
         }
         
-        // Создаем базу данных если её нет
+        pos = temp.find('/');
+        if (pos != std::string::npos) {
+            dbname = temp.substr(pos + 1);
+            temp = temp.substr(0, pos);
+        }
+        
+        pos = temp.find('@');
+        if (pos != std::string::npos) {
+            std::string userpass = temp.substr(0, pos);
+            temp = temp.substr(pos + 1);
+            pos = userpass.find(':');
+            if (pos != std::string::npos) {
+                user = userpass.substr(0, pos);
+                password = userpass.substr(pos + 1);
+            } else {
+                user = userpass;
+            }
+        }
+        
+        pos = temp.find(':');
+        if (pos != std::string::npos) {
+            host = temp.substr(0, pos);
+            port = temp.substr(pos + 1);
+        } else {
+            host = temp;
+        }
+        
+        // Создаем строку для подключения к postgres
+        std::string admin_conn = "host=" + host + " port=" + port + " user=" + user + " password=" + password + " dbname=postgres";
+        
+        // Пытаемся создать базу данных
         try {
-            pqxx::connection admin_conn(base_conn);
-            pqxx::work w(admin_conn);
+            pqxx::connection admin_conn_obj(admin_conn);
+            pqxx::work w(admin_conn_obj);
             w.exec("CREATE DATABASE " + dbname);
             w.commit();
         } catch (const pqxx::sql_error& e) {
-            // База данных уже существует - игнорируем
-        } catch (...) {
-            // Игнорируем другие ошибки
+            // База данных уже существует
+        } catch (const std::exception& e) {
+            // Игнорируем
         }
         
-        // Подключаемся к базе данных
+        // Подключаемся к нужной базе
         conn_ = std::make_shared<pqxx::connection>(conn_string);
         prepareStatements();
         createTableIfNotExists();
