@@ -77,6 +77,7 @@ int main() {
             w.exec("CREATE TABLE books (id uuid PRIMARY KEY, author_id uuid NOT NULL REFERENCES authors(id) ON DELETE CASCADE, title varchar(100) NOT NULL, publication_year integer NOT NULL);");
             w.exec("CREATE TABLE book_tags (book_id uuid NOT NULL REFERENCES books(id) ON DELETE CASCADE, tag varchar(30) NOT NULL, PRIMARY KEY (book_id, tag));");
             w.commit();
+                    cout << flush;
         }
         
         string line;
@@ -98,6 +99,7 @@ int main() {
                     pqxx::work w(conn);
                     w.exec_params("INSERT INTO authors (id, name) VALUES ($1, $2)", generate_uuid(), author_name);
                     w.commit();
+                    cout << flush;
                 } catch (const exception& e) {
                     cout << "Failed to add author" << endl;
                 }
@@ -156,6 +158,7 @@ int main() {
                     pqxx::work w(conn);
                     auto res = w.exec_params("DELETE FROM authors WHERE name = $1 RETURNING id", name);
                     w.commit();
+                    cout << flush;
                     if (res.empty()) cout << "Failed to delete author" << endl;
                 } catch (...) {
                     cout << "Failed to delete author" << endl;
@@ -197,6 +200,7 @@ int main() {
                     pqxx::work w(conn);
                     auto res = w.exec_params("UPDATE authors SET name = $1 WHERE name = $2 RETURNING id", new_name, name);
                     w.commit();
+                    cout << flush;
                     if (res.empty()) cout << "Failed to edit author" << endl;
                 } catch (...) {
                     cout << "Failed to edit author" << endl;
@@ -242,6 +246,7 @@ int main() {
                             pqxx::work w(conn);
                             w.exec_params("INSERT INTO authors (id, name) VALUES ($1, $2)", author_id, author_input);
                             w.commit();
+                    cout << flush;
                         }
                     } catch (...) {
                         cout << "Failed to add book" << endl;
@@ -294,6 +299,7 @@ int main() {
                         w.exec_params("INSERT INTO book_tags (book_id, tag) VALUES ($1, $2)", book_id, tag);
                     }
                     w.commit();
+                    cout << flush;
                 } catch (const exception& e) {
                     cerr << "DB Error: " << e.what() << endl;
                     cout << "Failed to add book" << endl;
