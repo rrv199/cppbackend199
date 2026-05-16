@@ -67,12 +67,16 @@ vector<BookInfo> get_books(pqxx::connection& conn) {
         book.title = row[1].as<string>();
         book.author_name = row[2].as<string>();
         book.year = row[3].as<int>();
-        
-        auto tag_res = r.exec_params("SELECT tag FROM book_tags WHERE book_id = $1 ORDER BY tag", book.id);
+        books.push_back(book);
+    }
+    
+    // Get tags for each book in a separate transaction
+    for (auto& book : books) {
+        pqxx::read_transaction r2(conn);
+        auto tag_res = r2.exec_params("SELECT tag FROM book_tags WHERE book_id = $1 ORDER BY tag", book.id);
         for (const auto& tag_row : tag_res) {
             book.tags.push_back(tag_row[0].as<string>());
         }
-        books.push_back(book);
     }
     return books;
 }
@@ -112,14 +116,6 @@ vector<string> parse_tags(const string& input) {
     return result;
 }
 
-void show_books_list(pqxx::connection& conn) {
-    auto books = get_books(conn);
-    for (size_t i = 0; i < books.size(); ++i) {
-        cout << i + 1 << " " << books[i].title << " by " 
-             << books[i].author_name << ", " << books[i].year << endl;
-    }
-}
-
 int main() {
     try {
         const char* db_url = getenv("BOOKYPEDIA_DB_URL");
@@ -128,8 +124,11 @@ int main() {
             return 1;
         }
         
-        pqxx::connection conn(db_url);
-        ensure_tables(conn);
+        // Initialize tables
+        {
+            pqxx::connection conn(db_url);
+            ensure_tables(conn);
+        }
         
         string line;
         while (getline(cin, line)) {
@@ -153,15 +152,18 @@ int main() {
                 }
                 
                 try {
+                    pqxx::connection conn(db_url);
                     pqxx::work w(conn);
                     w.exec_params("INSERT INTO authors (id, name) VALUES ($1, $2)",
                                   generate_uuid(), name);
                     w.commit();
+                    cout << "Author added successfully" << endl;
                 } catch (const exception& e) {
                     cout << "Failed to add author" << endl;
                 }
                 
             } else if (cmd == "ShowAuthors") {
+                pqxx::connection conn(db_url);
                 auto authors = get_authors(conn);
                 for (size_t i = 0; i < authors.size(); ++i) {
                     cout << i + 1 << " " << authors[i].second << endl;
@@ -176,6 +178,7 @@ int main() {
                 if (end != string::npos) name = name.substr(0, end + 1);
                 
                 if (name.empty()) {
+                    pqxx::connection conn(db_url);
                     auto authors = get_authors(conn);
                     if (authors.empty()) continue;
                     cout << "Select author:" << endl;
@@ -195,6 +198,7 @@ int main() {
                 }
                 
                 try {
+                    pqxx::connection conn(db_url);
                     pqxx::work w(conn);
                     auto res = w.exec_params("DELETE FROM authors WHERE name = $1 RETURNING id", name);
                     w.commit();
@@ -214,6 +218,7 @@ int main() {
                 if (end != string::npos) name = name.substr(0, end + 1);
                 
                 if (name.empty()) {
+                    pqxx::connection conn(db_url);
                     auto authors = get_authors(conn);
                     if (authors.empty()) continue;
                     cout << "Select author:" << endl;
@@ -235,12 +240,13 @@ int main() {
                 cout << "Enter new name:" << endl;
                 string new_name;
                 getline(cin, new_name);
-                start = new_name.find_first_not_of(" \t");
+                size_t start = new_name.find_first_not_of(" \t");
                 if (start != string::npos) new_name = new_name.substr(start);
-                end = new_name.find_last_not_of(" \t");
+                size_t end = new_name.find_last_not_of(" \t");
                 if (end != string::npos) new_name = new_name.substr(0, end + 1);
                 
                 try {
+                    pqxx::connection conn(db_url);
                     pqxx::work w(conn);
                     auto res = w.exec_params("UPDATE authors SET name = $1 WHERE name = $2 RETURNING id", 
                                               new_name, name);
@@ -253,7 +259,12 @@ int main() {
                 }
                 
             } else if (cmd == "ShowBooks") {
-                show_books_list(conn);
+                pqxx::connection conn(db_url);
+                auto books = get_books(conn);
+                for (size_t i = 0; i < books.size(); ++i) {
+                    cout << i + 1 << " " << books[i].title << " by " 
+                         << books[i].author_name << ", " << books[i].year << endl;
+                }
                 
             } else if (cmd == "ShowBook") {
                 string title;
@@ -263,6 +274,7 @@ int main() {
                 size_t end = title.find_last_not_of(" \t");
                 if (end != string::npos) title = title.substr(0, end + 1);
                 
+                pqxx::connection conn(db_url);
                 auto books = get_books(conn);
                 vector<BookInfo> matching;
                 
@@ -320,6 +332,69 @@ int main() {
                     }
                 }
                 
+            } else if (cmd == "DeleteBook") {
+                string title;
+                getline(iss, title);
+                size_t start = title.find_first_not_of(" \t");
+                if (start != string::npos) title = title.substr(start);
+                size_t end = title.find_last_not_of(" \t");
+                if (end != string::npos) title = title.substr(0, end + 1);
+                
+                pqxx::connection conn(db_url);
+                auto books = get_books(conn);
+                vector<BookInfo> matching;
+                
+                if (!title.empty()) {
+                    for (const auto& book : books) {
+                        if (book.title == title) {
+                            matching.push_back(book);
+                        }
+                    }
+                }
+                
+                if (matching.empty() && !title.empty()) {
+                    cout << "Failed to delete book" << endl;
+                    continue;
+                }
+                
+                if (matching.size() == 1 && !title.empty()) {
+                    try {
+                        pqxx::connection conn2(db_url);
+                        pqxx::work w(conn2);
+                        w.exec_params("DELETE FROM books WHERE id = $1", matching[0].id);
+                        w.commit();
+                    } catch (const exception& e) {
+                        cout << "Failed to delete book" << endl;
+                    }
+                } else {
+                    if (books.empty()) {
+                        cout << "Failed to delete book" << endl;
+                        continue;
+                    }
+                    cout << "Select book:" << endl;
+                    for (size_t i = 0; i < books.size(); ++i) {
+                        cout << i + 1 << " " << books[i].title << " by " 
+                             << books[i].author_name << ", " << books[i].year << endl;
+                    }
+                    cout << "Enter the book # or empty line to cancel:" << endl;
+                    string choice_line;
+                    getline(cin, choice_line);
+                    if (choice_line.empty()) continue;
+                    int choice = stoi(choice_line);
+                    if (choice < 1 || choice > (int)books.size()) {
+                        cout << "Failed to delete book" << endl;
+                        continue;
+                    }
+                    try {
+                        pqxx::connection conn2(db_url);
+                        pqxx::work w(conn2);
+                        w.exec_params("DELETE FROM books WHERE id = $1", books[choice - 1].id);
+                        w.commit();
+                    } catch (const exception& e) {
+                        cout << "Failed to delete book" << endl;
+                    }
+                }
+                
             } else if (cmd == "AddBook") {
                 int year;
                 iss >> year;
@@ -343,6 +418,7 @@ int main() {
                 string author_id;
                 
                 if (!author_input.empty()) {
+                    pqxx::connection conn(db_url);
                     pqxx::read_transaction r(conn);
                     auto res = r.exec_params("SELECT id FROM authors WHERE name = $1", author_input);
                     if (!res.empty()) {
@@ -362,6 +438,7 @@ int main() {
                         w.commit();
                     }
                 } else {
+                    pqxx::connection conn(db_url);
                     auto authors = get_authors(conn);
                     if (authors.empty()) {
                         cout << "Failed to add book" << endl;
@@ -393,6 +470,7 @@ int main() {
                 
                 string book_id = generate_uuid();
                 try {
+                    pqxx::connection conn(db_url);
                     pqxx::work w(conn);
                     w.exec_params("INSERT INTO books (id, author_id, title, publication_year) "
                                   "VALUES ($1, $2, $3, $4)",
