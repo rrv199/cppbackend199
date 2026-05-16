@@ -17,7 +17,7 @@ public:
     bool addBook(const std::string& title, const std::string& author, 
                  int year, const std::optional<std::string>& isbn) {
         try {
-            ensureTable();
+            createTableIfNeeded();
             pqxx::work w(*conn_);
             
             if (isbn.has_value()) {
@@ -28,13 +28,21 @@ public:
             
             w.commit();
             return true;
+        } catch (const pqxx::sql_error& e) {
+            std::string err = e.what();
+            if (err.find("does not exist") != std::string::npos) {
+                // Если таблицы нет, создаем и пробуем снова
+                forceCreateTable();
+                return addBook(title, author, year, isbn);
+            }
+            return false;
         } catch (const std::exception& e) {
             return false;
         }
     }
     
     json getAllBooks() {
-        ensureTable();
+        createTableIfNeeded();
         pqxx::read_transaction r(*conn_);
         json result = json::array();
         
@@ -57,17 +65,27 @@ public:
                 }
                 result.push_back(book);
             }
+        } catch (const pqxx::sql_error& e) {
+            std::string err = e.what();
+            if (err.find("does not exist") != std::string::npos) {
+                // Если таблицы нет, создаем и пробуем снова
+                forceCreateTable();
+                return getAllBooks();
+            }
         } catch (const std::exception& e) {
-            // Возвращаем пустой массив
+            // Игнорируем
         }
         
         return result;
     }
     
 private:
-    void ensureTable() {
-        if (table_checked_) return;
-        
+    void createTableIfNeeded() {
+        if (table_created_) return;
+        forceCreateTable();
+    }
+    
+    void forceCreateTable() {
         try {
             pqxx::work w(*conn_);
             w.exec(
@@ -78,9 +96,9 @@ private:
                 "year integer NOT NULL, "
                 "isbn char(13) UNIQUE)");
             w.commit();
-            table_checked_ = true;
+            table_created_ = true;
         } catch (const std::exception& e) {
-            // Игнорируем ошибки
+            // Игнорируем
         }
     }
     
@@ -91,7 +109,7 @@ private:
     }
     
     std::shared_ptr<pqxx::connection> conn_;
-    bool table_checked_ = false;
+    bool table_created_ = false;
 };
 
 int main(int argc, char* argv[]) {
