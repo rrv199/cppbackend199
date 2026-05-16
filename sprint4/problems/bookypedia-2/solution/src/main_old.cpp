@@ -359,6 +359,7 @@ int main() {
                     pqxx::connection conn(db_url);
                     pqxx::nontransaction t(conn);
                     
+                    // Find books
                     auto res = t.exec_params(
                         "SELECT b.id, b.title FROM books b WHERE b.title = $1", title.c_str());
                     
@@ -397,10 +398,7 @@ int main() {
                         getline(cin, choice_line);
                         if (choice_line.empty()) continue;
                         int choice = stoi(choice_line);
-                        if (choice < 1 || choice > (int)select_books.size()) {
-                            cout << "Book not found" << endl;
-                            continue;
-                        }
+                        if (choice < 1 || choice > (int)select_books.size()) continue;
                         
                         book_id = select_books[choice - 1].first;
                         current_title = select_books[choice - 1].second;
@@ -417,7 +415,6 @@ int main() {
                     cout << "Enter publication year or empty line to use the current one (" << current_year << "):" << endl;
                     string year_str;
                     getline(cin, year_str);
-                    year_str = trim(year_str);
                     int new_year = current_year;
                     if (!year_str.empty()) new_year = stoi(year_str);
                     
@@ -430,7 +427,6 @@ int main() {
                     cout << "Enter tags (current tags: " << (tags_str.empty() ? "none" : tags_str) << "):" << endl;
                     string tags_line;
                     getline(cin, tags_line);
-                    tags_line = trim(tags_line);
                     
                     vector<string> new_tags;
                     if (tags_line.empty()) {
@@ -442,16 +438,13 @@ int main() {
                     }
                     
                     pqxx::work w(conn);
-                    w.exec_params("UPDATE books SET title = $1, publication_year = $2 WHERE id = $3", 
-                                  new_title, new_year, book_id);
+                    w.exec_params("UPDATE books SET title = $1, publication_year = $2 WHERE id = $3", new_title, new_year, book_id);
                     w.exec_params("DELETE FROM book_tags WHERE book_id = $1", book_id);
                     for (const auto& tag : new_tags) {
-                        if (!tag.empty()) {
-                            w.exec_params("INSERT INTO book_tags (book_id, tag) VALUES ($1, $2)", book_id, tag);
-                        }
+                        w.exec_params("INSERT INTO book_tags (book_id, tag) VALUES ($1, $2)", book_id, tag);
                     }
                     w.commit();
-                } catch (const exception& e) {
+                } catch (...) {
                     cout << "Book not found" << endl;
                 }
                 
