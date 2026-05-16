@@ -11,9 +11,10 @@ COPY solution/ /app/
 
 RUN rm -rf build && mkdir build && cd build && \
     cmake .. && \
-    make -j4
+    make -j4 && \
+    cp serialization_tests /app/game_server
 
-WORKDIR /app/build
+WORKDIR /app
 
-ENTRYPOINT ["./serialization_tests"]
+ENTRYPOINT ["./game_server"]
 CMD ["-s"]
