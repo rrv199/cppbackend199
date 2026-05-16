@@ -1,7 +1,6 @@
 #include <iostream>
 #include <string>
 #include <sstream>
-#include <memory>
 #include <vector>
 #include <algorithm>
 #include <set>
@@ -16,6 +15,24 @@ boost::uuids::random_generator uuid_gen;
 
 string generate_uuid() {
     return boost::uuids::to_string(uuid_gen());
+}
+
+void ensure_tables(pqxx::connection& conn) {
+    pqxx::work w(conn);
+    w.exec("CREATE EXTENSION IF NOT EXISTS pgcrypto;");
+    w.exec("CREATE TABLE IF NOT EXISTS authors ("
+           "id uuid PRIMARY KEY, "
+           "name varchar(100) UNIQUE NOT NULL);");
+    w.exec("CREATE TABLE IF NOT EXISTS books ("
+           "id uuid PRIMARY KEY, "
+           "author_id uuid NOT NULL REFERENCES authors(id) ON DELETE CASCADE, "
+           "title varchar(100) NOT NULL, "
+           "publication_year integer NOT NULL);");
+    w.exec("CREATE TABLE IF NOT EXISTS book_tags ("
+           "book_id uuid NOT NULL REFERENCES books(id) ON DELETE CASCADE, "
+           "tag varchar(30) NOT NULL, "
+           "PRIMARY KEY (book_id, tag));");
+    w.commit();
 }
 
 vector<pair<string, string>> get_authors(pqxx::connection& conn) {
@@ -86,25 +103,7 @@ int main() {
         }
         
         pqxx::connection conn(db_url);
-        
-        // Создаем таблицы
-        {
-            pqxx::work w(conn);
-            w.exec("CREATE EXTENSION IF NOT EXISTS pgcrypto;");
-            w.exec("CREATE TABLE IF NOT EXISTS authors ("
-                   "id uuid PRIMARY KEY, "
-                   "name varchar(100) UNIQUE NOT NULL);");
-            w.exec("CREATE TABLE IF NOT EXISTS books ("
-                   "id uuid PRIMARY KEY, "
-                   "author_id uuid NOT NULL REFERENCES authors(id) ON DELETE CASCADE, "
-                   "title varchar(100) NOT NULL, "
-                   "publication_year integer NOT NULL);");
-            w.exec("CREATE TABLE IF NOT EXISTS book_tags ("
-                   "book_id uuid NOT NULL REFERENCES books(id) ON DELETE CASCADE, "
-                   "tag varchar(30) NOT NULL, "
-                   "PRIMARY KEY (book_id, tag));");
-            w.commit();
-        }
+        ensure_tables(conn);
         
         string line;
         while (getline(cin, line)) {
@@ -142,6 +141,91 @@ int main() {
                     cout << i + 1 << " " << authors[i].second << endl;
                 }
                 
+            } else if (cmd == "DeleteAuthor") {
+                string name;
+                getline(iss, name);
+                size_t start = name.find_first_not_of(" \t");
+                if (start != string::npos) name = name.substr(start);
+                size_t end = name.find_last_not_of(" \t");
+                if (end != string::npos) name = name.substr(0, end + 1);
+                
+                if (name.empty()) {
+                    auto authors = get_authors(conn);
+                    if (authors.empty()) continue;
+                    cout << "Select author:" << endl;
+                    for (size_t i = 0; i < authors.size(); ++i) {
+                        cout << i + 1 << " " << authors[i].second << endl;
+                    }
+                    cout << "Enter author # or empty line to cancel" << endl;
+                    string choice_line;
+                    getline(cin, choice_line);
+                    if (choice_line.empty()) continue;
+                    int choice = stoi(choice_line);
+                    if (choice < 1 || choice > (int)authors.size()) {
+                        cout << "Failed to delete author" << endl;
+                        continue;
+                    }
+                    name = authors[choice - 1].second;
+                }
+                
+                try {
+                    pqxx::work w(conn);
+                    auto res = w.exec_params("DELETE FROM authors WHERE name = $1 RETURNING id", name);
+                    if (res.empty()) {
+                        cout << "Failed to delete author" << endl;
+                    }
+                    w.commit();
+                } catch (const exception& e) {
+                    cout << "Failed to delete author" << endl;
+                }
+                
+            } else if (cmd == "EditAuthor") {
+                string name;
+                getline(iss, name);
+                size_t start = name.find_first_not_of(" \t");
+                if (start != string::npos) name = name.substr(start);
+                size_t end = name.find_last_not_of(" \t");
+                if (end != string::npos) name = name.substr(0, end + 1);
+                
+                if (name.empty()) {
+                    auto authors = get_authors(conn);
+                    if (authors.empty()) continue;
+                    cout << "Select author:" << endl;
+                    for (size_t i = 0; i < authors.size(); ++i) {
+                        cout << i + 1 << " " << authors[i].second << endl;
+                    }
+                    cout << "Enter author # or empty line to cancel" << endl;
+                    string choice_line;
+                    getline(cin, choice_line);
+                    if (choice_line.empty()) continue;
+                    int choice = stoi(choice_line);
+                    if (choice < 1 || choice > (int)authors.size()) {
+                        cout << "Failed to edit author" << endl;
+                        continue;
+                    }
+                    name = authors[choice - 1].second;
+                }
+                
+                cout << "Enter new name:" << endl;
+                string new_name;
+                getline(cin, new_name);
+                start = new_name.find_first_not_of(" \t");
+                if (start != string::npos) new_name = new_name.substr(start);
+                end = new_name.find_last_not_of(" \t");
+                if (end != string::npos) new_name = new_name.substr(0, end + 1);
+                
+                try {
+                    pqxx::work w(conn);
+                    auto res = w.exec_params("UPDATE authors SET name = $1 WHERE name = $2 RETURNING id", 
+                                              new_name, name);
+                    if (res.empty()) {
+                        cout << "Failed to edit author" << endl;
+                    }
+                    w.commit();
+                } catch (const exception& e) {
+                    cout << "Failed to edit author" << endl;
+                }
+                
             } else if (cmd == "ShowBooks") {
                 auto books = get_books(conn);
                 for (size_t i = 0; i < books.size(); ++i) {
@@ -170,14 +254,12 @@ int main() {
                 if (end != string::npos) author_input = author_input.substr(0, end + 1);
                 
                 string author_id;
-                bool author_exists = false;
                 
                 if (!author_input.empty()) {
                     pqxx::read_transaction r(conn);
                     auto res = r.exec_params("SELECT id FROM authors WHERE name = $1", author_input);
                     if (!res.empty()) {
                         author_id = res[0][0].as<string>();
-                        author_exists = true;
                     } else {
                         cout << "No author found. Do you want to add " << author_input << " (y/n)?" << endl;
                         string answer;
@@ -191,7 +273,6 @@ int main() {
                         w.exec_params("INSERT INTO authors (id, name) VALUES ($1, $2)",
                                       author_id, author_input);
                         w.commit();
-                        author_exists = true;
                     }
                 } else {
                     auto authors = get_authors(conn);
@@ -210,10 +291,7 @@ int main() {
                         continue;
                     }
                     author_id = authors[choice - 1].first;
-                    author_exists = true;
                 }
-                
-                if (!author_exists) continue;
                 
                 cout << "Enter tags (comma separated):" << endl;
                 string tags_line;
