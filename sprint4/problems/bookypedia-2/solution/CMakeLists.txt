@@ -3,6 +3,7 @@ project(bookypedia LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 
 # Подключаем Conan (если есть)
 if(EXISTS ${CMAKE_BINARY_DIR}/conanbuildinfo.cmake)
@@ -23,12 +24,10 @@ target_link_libraries(bookypedia
 if(NOT CONAN_LIBS)
     find_library(PQXX_LIB pqxx REQUIRED)
     find_library(PQ_LIB pq REQUIRED)
-    find_library(BOOST_LIB boost_system REQUIRED)
     
     target_link_libraries(bookypedia
         ${PQXX_LIB}
         ${PQ_LIB}
-        ${BOOST_LIB}
         pthread
     )
     
@@ -39,3 +38,7 @@ endif()
 
 # Устанавливаем флаги компиляции
 target_compile_options(bookypedia PRIVATE -Wall -Wextra -g)
+
+# Устанавливаем пути для поиска заголовочных файлов Boost (header-only)
+find_package(Boost REQUIRED)
+target_include_directories(bookypedia PRIVATE ${Boost_INCLUDE_DIRS})
