@@ -65,7 +65,7 @@ int main() {
             return 1;
         }
         
-        // Initialize tables - отдельное соединение
+        // Initialize tables
         {
             pqxx::connection conn(db_url);
             pqxx::work w(conn);
@@ -100,35 +100,42 @@ int main() {
                 }
                 
             } else if (cmd == "ShowAuthors") {
-                pqxx::connection conn(db_url);
-                pqxx::read_transaction r(conn);
-                auto res = r.exec("SELECT name FROM authors ORDER BY name");
-                int i = 1;
-                for (const auto& row : res) {
-                    cout << i++ << " " << row[0].as<string>() << endl;
-                }
+                try {
+                    pqxx::connection conn(db_url);
+                    pqxx::nontransaction t(conn);
+                    auto res = t.exec("SELECT name FROM authors ORDER BY name");
+                    int i = 1;
+                    for (const auto& row : res) {
+                        cout << i++ << " " << row[0].as<string>() << endl;
+                    }
+                } catch (...) {}
                 
             } else if (cmd == "DeleteAuthor") {
                 string name = trim(line.substr(cmd.length()));
                 if (name.empty()) {
-                    pqxx::connection conn(db_url);
-                    pqxx::read_transaction r(conn);
-                    auto res = r.exec("SELECT name FROM authors ORDER BY name");
-                    vector<string> authors;
-                    for (const auto& row : res) authors.push_back(row[0].as<string>());
-                    if (authors.empty()) continue;
-                    cout << "Select author:" << endl;
-                    for (size_t i = 0; i < authors.size(); i++) cout << i+1 << " " << authors[i] << endl;
-                    cout << "Enter author # or empty line to cancel" << endl;
-                    string choice;
-                    getline(cin, choice);
-                    if (choice.empty()) continue;
-                    int idx = stoi(choice);
-                    if (idx < 1 || idx > (int)authors.size()) {
+                    try {
+                        pqxx::connection conn(db_url);
+                        pqxx::nontransaction t(conn);
+                        auto res = t.exec("SELECT name FROM authors ORDER BY name");
+                        vector<string> authors;
+                        for (const auto& row : res) authors.push_back(row[0].as<string>());
+                        if (authors.empty()) continue;
+                        cout << "Select author:" << endl;
+                        for (size_t i = 0; i < authors.size(); i++) cout << i+1 << " " << authors[i] << endl;
+                        cout << "Enter author # or empty line to cancel" << endl;
+                        string choice;
+                        getline(cin, choice);
+                        if (choice.empty()) continue;
+                        int idx = stoi(choice);
+                        if (idx < 1 || idx > (int)authors.size()) {
+                            cout << "Failed to delete author" << endl;
+                            continue;
+                        }
+                        name = authors[idx-1];
+                    } catch (...) {
                         cout << "Failed to delete author" << endl;
                         continue;
                     }
-                    name = authors[idx-1];
                 }
                 try {
                     pqxx::connection conn(db_url);
@@ -143,24 +150,29 @@ int main() {
             } else if (cmd == "EditAuthor") {
                 string name = trim(line.substr(cmd.length()));
                 if (name.empty()) {
-                    pqxx::connection conn(db_url);
-                    pqxx::read_transaction r(conn);
-                    auto res = r.exec("SELECT name FROM authors ORDER BY name");
-                    vector<string> authors;
-                    for (const auto& row : res) authors.push_back(row[0].as<string>());
-                    if (authors.empty()) continue;
-                    cout << "Select author:" << endl;
-                    for (size_t i = 0; i < authors.size(); i++) cout << i+1 << " " << authors[i] << endl;
-                    cout << "Enter author # or empty line to cancel" << endl;
-                    string choice;
-                    getline(cin, choice);
-                    if (choice.empty()) continue;
-                    int idx = stoi(choice);
-                    if (idx < 1 || idx > (int)authors.size()) {
+                    try {
+                        pqxx::connection conn(db_url);
+                        pqxx::nontransaction t(conn);
+                        auto res = t.exec("SELECT name FROM authors ORDER BY name");
+                        vector<string> authors;
+                        for (const auto& row : res) authors.push_back(row[0].as<string>());
+                        if (authors.empty()) continue;
+                        cout << "Select author:" << endl;
+                        for (size_t i = 0; i < authors.size(); i++) cout << i+1 << " " << authors[i] << endl;
+                        cout << "Enter author # or empty line to cancel" << endl;
+                        string choice;
+                        getline(cin, choice);
+                        if (choice.empty()) continue;
+                        int idx = stoi(choice);
+                        if (idx < 1 || idx > (int)authors.size()) {
+                            cout << "Failed to edit author" << endl;
+                            continue;
+                        }
+                        name = authors[idx-1];
+                    } catch (...) {
                         cout << "Failed to edit author" << endl;
                         continue;
                     }
-                    name = authors[idx-1];
                 }
                 cout << "Enter new name:" << endl;
                 string new_name;
@@ -177,13 +189,15 @@ int main() {
                 }
                 
             } else if (cmd == "ShowBooks") {
-                pqxx::connection conn(db_url);
-                pqxx::read_transaction r(conn);
-                auto res = r.exec("SELECT b.title, a.name, b.publication_year FROM books b JOIN authors a ON b.author_id = a.id ORDER BY b.title, a.name, b.publication_year");
-                int i = 1;
-                for (const auto& row : res) {
-                    cout << i++ << " " << row[0].as<string>() << " by " << row[1].as<string>() << ", " << row[2].as<int>() << endl;
-                }
+                try {
+                    pqxx::connection conn(db_url);
+                    pqxx::nontransaction t(conn);
+                    auto res = t.exec("SELECT b.title, a.name, b.publication_year FROM books b JOIN authors a ON b.author_id = a.id ORDER BY b.title, a.name, b.publication_year");
+                    int i = 1;
+                    for (const auto& row : res) {
+                        cout << i++ << " " << row[0].as<string>() << " by " << row[1].as<string>() << ", " << row[2].as<int>() << endl;
+                    }
+                } catch (...) {}
                 
             } else if (cmd == "AddBook") {
                 int year;
@@ -198,49 +212,59 @@ int main() {
                 string author_id;
                 
                 if (!author_input.empty()) {
-                    pqxx::connection conn(db_url);
-                    pqxx::read_transaction r(conn);
-                    auto res = r.exec_params("SELECT id FROM authors WHERE name = $1", author_input);
-                    if (!res.empty()) {
-                        author_id = res[0][0].as<string>();
-                    } else {
-                        cout << "No author found. Do you want to add " << author_input << " (y/n)?" << endl;
-                        string answer;
-                        getline(cin, answer);
-                        if (answer != "y" && answer != "Y") {
+                    try {
+                        pqxx::connection conn(db_url);
+                        pqxx::nontransaction t(conn);
+                        auto res = t.exec_params("SELECT id FROM authors WHERE name = $1", author_input);
+                        if (!res.empty()) {
+                            author_id = res[0][0].as<string>();
+                        } else {
+                            cout << "No author found. Do you want to add " << author_input << " (y/n)?" << endl;
+                            string answer;
+                            getline(cin, answer);
+                            if (answer != "y" && answer != "Y") {
+                                cout << "Failed to add book" << endl;
+                                continue;
+                            }
+                            author_id = generate_uuid();
+                            pqxx::work w(conn);
+                            w.exec_params("INSERT INTO authors (id, name) VALUES ($1, $2)", author_id, author_input);
+                            w.commit();
+                        }
+                    } catch (...) {
+                        cout << "Failed to add book" << endl;
+                        continue;
+                    }
+                } else {
+                    try {
+                        pqxx::connection conn(db_url);
+                        pqxx::nontransaction t(conn);
+                        auto res = t.exec("SELECT id, name FROM authors ORDER BY name");
+                        vector<pair<string,string>> authors;
+                        for (const auto& row : res) authors.push_back({row[0].as<string>(), row[1].as<string>()});
+                        if (authors.empty()) {
                             cout << "Failed to add book" << endl;
                             continue;
                         }
-                        author_id = generate_uuid();
-                        pqxx::work w(conn);
-                        w.exec_params("INSERT INTO authors (id, name) VALUES ($1, $2)", author_id, author_input);
-                        w.commit();
-                    }
-                } else {
-                    pqxx::connection conn(db_url);
-                    pqxx::read_transaction r(conn);
-                    auto res = r.exec("SELECT id, name FROM authors ORDER BY name");
-                    vector<pair<string,string>> authors;
-                    for (const auto& row : res) authors.push_back({row[0].as<string>(), row[1].as<string>()});
-                    if (authors.empty()) {
+                        cout << "Select author:" << endl;
+                        for (size_t i = 0; i < authors.size(); i++) cout << i+1 << " " << authors[i].second << endl;
+                        cout << "Enter author # or empty line to cancel" << endl;
+                        string choice;
+                        getline(cin, choice);
+                        if (choice.empty()) {
+                            cout << "Failed to add book" << endl;
+                            continue;
+                        }
+                        int idx = stoi(choice);
+                        if (idx < 1 || idx > (int)authors.size()) {
+                            cout << "Failed to add book" << endl;
+                            continue;
+                        }
+                        author_id = authors[idx-1].first;
+                    } catch (...) {
                         cout << "Failed to add book" << endl;
                         continue;
                     }
-                    cout << "Select author:" << endl;
-                    for (size_t i = 0; i < authors.size(); i++) cout << i+1 << " " << authors[i].second << endl;
-                    cout << "Enter author # or empty line to cancel" << endl;
-                    string choice;
-                    getline(cin, choice);
-                    if (choice.empty()) {
-                        cout << "Failed to add book" << endl;
-                        continue;
-                    }
-                    int idx = stoi(choice);
-                    if (idx < 1 || idx > (int)authors.size()) {
-                        cout << "Failed to add book" << endl;
-                        continue;
-                    }
-                    author_id = authors[idx-1].first;
                 }
                 
                 cout << "Enter tags (comma separated):" << endl;
