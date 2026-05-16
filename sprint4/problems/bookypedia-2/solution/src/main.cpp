@@ -76,6 +76,7 @@ int main() {
             w.exec("CREATE TABLE IF NOT EXISTS books (id uuid PRIMARY KEY, author_id uuid NOT NULL REFERENCES authors(id) ON DELETE CASCADE, title varchar(100) NOT NULL, publication_year integer NOT NULL);");
             w.exec("CREATE TABLE IF NOT EXISTS book_tags (book_id uuid NOT NULL REFERENCES books(id) ON DELETE CASCADE, tag varchar(30) NOT NULL, PRIMARY KEY (book_id, tag));");
             w.commit();
+                    cout << "DEBUG: commit successful" << endl;
         }
         
         string line;
@@ -97,6 +98,7 @@ int main() {
                     pqxx::work w(conn);
                     w.exec_params("INSERT INTO authors (id, name) VALUES ($1, $2)", generate_uuid(), name);
                     w.commit();
+                    cout << "DEBUG: commit successful" << endl;
                 } catch (...) {
                     cout << "Failed to add author" << endl;
                 }
@@ -144,6 +146,7 @@ int main() {
                     pqxx::work w(conn);
                     auto res = w.exec_params("DELETE FROM authors WHERE name = $1 RETURNING id", name);
                     w.commit();
+                    cout << "DEBUG: commit successful" << endl;
                     if (res.empty()) cout << "Failed to delete author" << endl;
                 } catch (...) {
                     cout << "Failed to delete author" << endl;
@@ -185,6 +188,7 @@ int main() {
                     pqxx::work w(conn);
                     auto res = w.exec_params("UPDATE authors SET name = $1 WHERE name = $2 RETURNING id", new_name, name);
                     w.commit();
+                    cout << "DEBUG: commit successful" << endl;
                     if (res.empty()) cout << "Failed to edit author" << endl;
                 } catch (...) {
                     cout << "Failed to edit author" << endl;
@@ -307,6 +311,7 @@ int main() {
                             pqxx::work w(conn);
                             w.exec_params("DELETE FROM books WHERE id = $1", book_id);
                             w.commit();
+                    cout << "DEBUG: commit successful" << endl;
                             continue;
                         }
                     }
@@ -343,6 +348,7 @@ int main() {
                     pqxx::work w(conn);
                     w.exec_params("DELETE FROM books WHERE id = $1", book_ids[choice - 1]);
                     w.commit();
+                    cout << "DEBUG: commit successful" << endl;
                 } catch (...) {
                     cout << "Failed to delete book" << endl;
                 }
@@ -449,6 +455,7 @@ int main() {
                         w.exec_params("INSERT INTO book_tags (book_id, tag) VALUES ($1, $2)", book_id, tag);
                     }
                     w.commit();
+                    cout << "DEBUG: commit successful" << endl;
                 } catch (...) {
                     cout << "Book not found" << endl;
                 }
@@ -484,6 +491,7 @@ int main() {
                             pqxx::work w(conn);
                             w.exec_params("INSERT INTO authors (id, name) VALUES ($1, $2)", author_id, author_input);
                             w.commit();
+                    cout << "DEBUG: commit successful" << endl;
                         }
                     } catch (...) {
                         cout << "Failed to add book" << endl;
@@ -535,6 +543,7 @@ int main() {
                         w.exec_params("INSERT INTO book_tags (book_id, tag) VALUES ($1, $2)", book_id, tag);
                     }
                     w.commit();
+                    cout << "DEBUG: commit successful" << endl;
                 } catch (...) {
                     cout << "Failed to add book" << endl;
                 }
