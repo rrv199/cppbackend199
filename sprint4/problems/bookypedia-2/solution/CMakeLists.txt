@@ -3,7 +3,6 @@ project(bookypedia LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
-set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 
 # Подключаем Conan (если есть)
 if(EXISTS ${CMAKE_BINARY_DIR}/conanbuildinfo.cmake)
@@ -11,7 +10,7 @@ if(EXISTS ${CMAKE_BINARY_DIR}/conanbuildinfo.cmake)
     conan_basic_setup()
 endif()
 
-# Добавляем исполняемый файл
+# Добавляем исполняемый файл в корень build, а не в bin
 add_executable(bookypedia src/main.cpp)
 
 # Линкуем библиотеки
