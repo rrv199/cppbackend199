@@ -7,7 +7,7 @@ RUN apt update && apt install -y \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
-COPY sprint4/problems/state_serialization/solution/ /app/
+COPY solution/ /app/
 
 RUN rm -rf build && mkdir build && cd build && \
     cmake .. && \
