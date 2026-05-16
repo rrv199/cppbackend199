@@ -12,12 +12,16 @@ public:
     BookManager(const std::string& conn_string) 
         : conn_(std::make_shared<pqxx::connection>(conn_string)) {
         prepareStatements();
-        createTableIfNotExists();
+        // Принудительно создаем таблицу при запуске
+        createTable();
     }
     
     bool addBook(const std::string& title, const std::string& author, 
                  int year, const std::optional<std::string>& isbn) {
         try {
+            // Убеждаемся, что таблица существует перед вставкой
+            ensureTable();
+            
             pqxx::work w(*conn_);
             
             if (isbn.has_value()) {
@@ -34,6 +38,7 @@ public:
     }
     
     json getAllBooks() {
+        ensureTable();
         pqxx::read_transaction r(*conn_);
         json result = json::array();
         
@@ -64,18 +69,26 @@ public:
     }
     
 private:
-    void createTableIfNotExists() {
+    void createTable() {
         try {
             pqxx::work w(*conn_);
-            w.exec("CREATE TABLE IF NOT EXISTS books ("
-                   "id SERIAL PRIMARY KEY, "
-                   "title varchar(100) NOT NULL, "
-                   "author varchar(100) NOT NULL, "
-                   "year integer NOT NULL, "
-                   "isbn char(13) UNIQUE)");
+            w.exec(
+                "CREATE TABLE IF NOT EXISTS books ("
+                "id SERIAL PRIMARY KEY, "
+                "title varchar(100) NOT NULL, "
+                "author varchar(100) NOT NULL, "
+                "year integer NOT NULL, "
+                "isbn char(13) UNIQUE)");
             w.commit();
+            table_exists_ = true;
         } catch (const std::exception& e) {
-            // Игнорируем
+            table_exists_ = false;
+        }
+    }
+    
+    void ensureTable() {
+        if (!table_exists_) {
+            createTable();
         }
     }
     
@@ -86,6 +99,7 @@ private:
     }
     
     std::shared_ptr<pqxx::connection> conn_;
+    bool table_exists_ = false;
 };
 
 int main(int argc, char* argv[]) {
