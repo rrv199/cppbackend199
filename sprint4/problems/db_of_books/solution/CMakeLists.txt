@@ -9,19 +9,19 @@ conan_basic_setup()
 
 find_package(Boost REQUIRED)
 
+# Настройка pthread
+set(THREADS_PREFER_PTHREAD_FLAG ON)
+find_package(Threads REQUIRED)
+
 add_executable(book_manager
     src/main.cpp
 )
 
+# Все линковки в одном месте
 target_link_libraries(book_manager
     ${CONAN_LIBS}
     ${Boost_LIBRARIES}
-    pthread
+    Threads::Threads
 )
 
 target_include_directories(book_manager PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
-
-# Настройка для CI
-set(THREADS_PREFER_PTHREAD_FLAG ON)
-find_package(Threads REQUIRED)
-target_link_libraries(book_manager PRIVATE Threads::Threads)
