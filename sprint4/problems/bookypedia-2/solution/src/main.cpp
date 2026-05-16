@@ -78,8 +78,6 @@ int main() {
             w.commit();
         }
         
-        cout << flush;
-        
         string line;
         while (getline(cin, line)) {
             if (line.empty()) continue;
@@ -278,9 +276,7 @@ int main() {
                     
                     if (!title.empty()) {
                         auto res = t.exec_params(
-                            "SELECT id, title, a.name, publication_year "
-                            "FROM books b JOIN authors a ON b.author_id = a.id "
-                            "WHERE title = $1", title);
+                            "SELECT id FROM books WHERE title = $1", title);
                         
                         if (res.empty()) {
                             cout << "Failed to delete book" << endl;
@@ -295,25 +291,29 @@ int main() {
                             continue;
                         } else {
                             cout << "Select book:" << endl;
-                            vector<string> book_ids;
-                            for (size_t i = 0; i < res.size(); ++i) {
-                                const auto& row = res[i];
+                            vector<pair<string, string>> books_list;
+                            auto full_res = t.exec_params(
+                                "SELECT b.id, b.title, a.name, b.publication_year "
+                                "FROM books b JOIN authors a ON b.author_id = a.id "
+                                "WHERE b.title = $1", title);
+                            for (size_t i = 0; i < full_res.size(); ++i) {
+                                const auto& row = full_res[i];
                                 cout << i + 1 << " " << row[1].as<string>() << " by " 
                                      << row[2].as<string>() << ", " << row[3].as<int>() << endl;
-                                book_ids.push_back(row[0].as<string>());
+                                books_list.push_back({row[0].as<string>(), row[1].as<string>()});
                             }
                             cout << "Enter the book # or empty line to cancel:" << endl;
                             string choice_line;
                             getline(cin, choice_line);
                             if (choice_line.empty()) continue;
                             int choice = stoi(choice_line);
-                            if (choice < 1 || choice > (int)book_ids.size()) {
+                            if (choice < 1 || choice > (int)books_list.size()) {
                                 cout << "Failed to delete book" << endl;
                                 continue;
                             }
                             
                             pqxx::work w(conn);
-                            w.exec_params("DELETE FROM books WHERE id = $1", book_ids[choice - 1]);
+                            w.exec_params("DELETE FROM books WHERE id = $1", books_list[choice - 1].first);
                             w.commit();
                             continue;
                         }
@@ -535,8 +535,6 @@ int main() {
                     cout << "Failed to add book" << endl;
                 }
             }
-            
-            cout << flush;
         }
     } catch (const exception& e) {
         cerr << "Error: " << e.what() << endl;
