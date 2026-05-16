@@ -12,16 +12,14 @@ jobs:
     steps:
       - uses: actions/checkout@v3
       
-      - name: Install dependencies
-        run: |
-          sudo apt update
-          sudo apt install -y docker.io
-          sudo usermod -aG docker $USER
-          
-      - name: Build and test state_serialization
+      - name: Build state_serialization
         run: |
           cd sprint4/problems/state_serialization
           docker build -t state_serialization:latest .
+          
+      - name: Run tests
+        run: |
+          cd sprint4/problems/state_serialization
           docker run --rm state_serialization:latest -s
           
       - name: Upload test results
