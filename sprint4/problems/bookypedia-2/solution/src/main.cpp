@@ -67,8 +67,6 @@ int main() {
             return 1;
         }
         
-        cerr << "DB URL: " << db_url << endl;
-        
         // Initialize tables
         {
             pqxx::connection conn(db_url);
@@ -78,7 +76,6 @@ int main() {
             w.exec("CREATE TABLE IF NOT EXISTS books (id uuid PRIMARY KEY, author_id uuid NOT NULL REFERENCES authors(id) ON DELETE CASCADE, title varchar(100) NOT NULL, publication_year integer NOT NULL);");
             w.exec("CREATE TABLE IF NOT EXISTS book_tags (book_id uuid NOT NULL REFERENCES books(id) ON DELETE CASCADE, tag varchar(30) NOT NULL, PRIMARY KEY (book_id, tag));");
             w.commit();
-            cerr << "Tables initialized" << endl;
         }
         
         string line;
@@ -88,8 +85,6 @@ int main() {
             istringstream iss(line);
             string cmd;
             iss >> cmd;
-            
-            cerr << "DEBUG: Command: " << cmd << endl;
             
             if (cmd == "AddAuthor") {
                 string name = trim(line.substr(cmd.length()));
@@ -102,9 +97,7 @@ int main() {
                     pqxx::work w(conn);
                     w.exec_params("INSERT INTO authors (id, name) VALUES ($1, $2)", generate_uuid(), name);
                     w.commit();
-                    cerr << "DEBUG: Author added: " << name << endl;
-                } catch (const exception& e) {
-                    cerr << "DEBUG: AddAuthor error: " << e.what() << endl;
+                } catch (...) {
                     cout << "Failed to add author" << endl;
                 }
                 
@@ -117,9 +110,7 @@ int main() {
                     for (const auto& row : res) {
                         cout << i++ << " " << row[0].as<string>() << endl;
                     }
-                } catch (const exception& e) {
-                    cerr << "DEBUG: ShowAuthors error: " << e.what() << endl;
-                }
+                } catch (...) {}
                 
             } else if (cmd == "DeleteAuthor") {
                 string name = trim(line.substr(cmd.length()));
@@ -143,8 +134,7 @@ int main() {
                             continue;
                         }
                         name = authors[idx-1];
-                    } catch (const exception& e) {
-                        cerr << "DEBUG: DeleteAuthor selection error: " << e.what() << endl;
+                    } catch (...) {
                         cout << "Failed to delete author" << endl;
                         continue;
                     }
@@ -154,14 +144,8 @@ int main() {
                     pqxx::work w(conn);
                     auto res = w.exec_params("DELETE FROM authors WHERE name = $1 RETURNING id", name);
                     w.commit();
-                    if (res.empty()) {
-                        cout << "Failed to delete author" << endl;
-                        cerr << "DEBUG: Author not found: " << name << endl;
-                    } else {
-                        cerr << "DEBUG: Author deleted: " << name << endl;
-                    }
-                } catch (const exception& e) {
-                    cerr << "DEBUG: DeleteAuthor error: " << e.what() << endl;
+                    if (res.empty()) cout << "Failed to delete author" << endl;
+                } catch (...) {
                     cout << "Failed to delete author" << endl;
                 }
                 
@@ -187,8 +171,7 @@ int main() {
                             continue;
                         }
                         name = authors[idx-1];
-                    } catch (const exception& e) {
-                        cerr << "DEBUG: EditAuthor selection error: " << e.what() << endl;
+                    } catch (...) {
                         cout << "Failed to edit author" << endl;
                         continue;
                     }
@@ -202,13 +185,8 @@ int main() {
                     pqxx::work w(conn);
                     auto res = w.exec_params("UPDATE authors SET name = $1 WHERE name = $2 RETURNING id", new_name, name);
                     w.commit();
-                    if (res.empty()) {
-                        cout << "Failed to edit author" << endl;
-                    } else {
-                        cerr << "DEBUG: Author edited: " << name << " -> " << new_name << endl;
-                    }
-                } catch (const exception& e) {
-                    cerr << "DEBUG: EditAuthor error: " << e.what() << endl;
+                    if (res.empty()) cout << "Failed to edit author" << endl;
+                } catch (...) {
                     cout << "Failed to edit author" << endl;
                 }
                 
@@ -221,18 +199,13 @@ int main() {
                     for (const auto& row : res) {
                         cout << i++ << " " << row[0].as<string>() << " by " << row[1].as<string>() << ", " << row[2].as<int>() << endl;
                     }
-                    cerr << "DEBUG: ShowBooks returned " << res.size() << " books" << endl;
-                } catch (const exception& e) {
-                    cerr << "DEBUG: ShowBooks error: " << e.what() << endl;
-                }
+                } catch (...) {}
                 
             } else if (cmd == "AddBook") {
                 int year;
                 iss >> year;
                 string title = trim(line.substr(cmd.length() + to_string(year).length()));
                 if (title.empty()) continue;
-                
-                cerr << "DEBUG: AddBook: year=" << year << ", title=" << title << endl;
                 
                 cout << "Enter author name or empty line to select from list:" << endl;
                 string author_input;
@@ -247,7 +220,6 @@ int main() {
                         auto res = t.exec_params("SELECT id FROM authors WHERE name = $1", author_input);
                         if (!res.empty()) {
                             author_id = res[0][0].as<string>();
-                            cerr << "DEBUG: Found author: " << author_input << " id=" << author_id << endl;
                         } else {
                             cout << "No author found. Do you want to add " << author_input << " (y/n)?" << endl;
                             string answer;
@@ -260,10 +232,8 @@ int main() {
                             pqxx::work w(conn);
                             w.exec_params("INSERT INTO authors (id, name) VALUES ($1, $2)", author_id, author_input);
                             w.commit();
-                            cerr << "DEBUG: Added new author: " << author_input << " id=" << author_id << endl;
                         }
-                    } catch (const exception& e) {
-                        cerr << "DEBUG: AddBook author lookup error: " << e.what() << endl;
+                    } catch (...) {
                         cout << "Failed to add book" << endl;
                         continue;
                     }
@@ -293,9 +263,7 @@ int main() {
                             continue;
                         }
                         author_id = authors[idx-1].first;
-                        cerr << "DEBUG: Selected author: " << authors[idx-1].second << " id=" << author_id << endl;
-                    } catch (const exception& e) {
-                        cerr << "DEBUG: AddBook author selection error: " << e.what() << endl;
+                    } catch (...) {
                         cout << "Failed to add book" << endl;
                         continue;
                     }
@@ -310,21 +278,18 @@ int main() {
                 try {
                     pqxx::connection conn(db_url);
                     pqxx::work w(conn);
-                    w.exec_params("INSERT INTO books (id, author_id, title, publication_year) VALUES ($1, $2, $3, $4)", 
-                                  book_id, author_id, title, year);
+                    w.exec_params("INSERT INTO books (id, author_id, title, publication_year) VALUES ($1, $2, $3, $4)", book_id, author_id, title, year);
                     for (const auto& tag : tags) {
                         w.exec_params("INSERT INTO book_tags (book_id, tag) VALUES ($1, $2)", book_id, tag);
                     }
                     w.commit();
-                    cerr << "DEBUG: Book added successfully: " << title << " id=" << book_id << endl;
-                } catch (const exception& e) {
-                    cerr << "DEBUG: AddBook insert error: " << e.what() << endl;
+                } catch (...) {
                     cout << "Failed to add book" << endl;
                 }
             }
         }
     } catch (const exception& e) {
-        cerr << "Fatal error: " << e.what() << endl;
+        cerr << "Error: " << e.what() << endl;
         return 1;
     }
     return 0;
