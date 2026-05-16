@@ -102,7 +102,8 @@ int main() {
             } else if (cmd == "ShowAuthors") {
                 try {
                     pqxx::connection conn(db_url);
-                    auto res = conn.exec("SELECT name FROM authors ORDER BY name");
+                    pqxx::nontransaction t(conn);
+                    auto res = t.exec("SELECT name FROM authors ORDER BY name");
                     int i = 1;
                     for (const auto& row : res) {
                         cout << i++ << " " << row[0].as<string>() << endl;
@@ -114,7 +115,8 @@ int main() {
                 if (name.empty()) {
                     try {
                         pqxx::connection conn(db_url);
-                        auto res = conn.exec("SELECT name FROM authors ORDER BY name");
+                        pqxx::nontransaction t(conn);
+                        auto res = t.exec("SELECT name FROM authors ORDER BY name");
                         vector<string> authors;
                         for (const auto& row : res) authors.push_back(row[0].as<string>());
                         if (authors.empty()) continue;
@@ -150,7 +152,8 @@ int main() {
                 if (name.empty()) {
                     try {
                         pqxx::connection conn(db_url);
-                        auto res = conn.exec("SELECT name FROM authors ORDER BY name");
+                        pqxx::nontransaction t(conn);
+                        auto res = t.exec("SELECT name FROM authors ORDER BY name");
                         vector<string> authors;
                         for (const auto& row : res) authors.push_back(row[0].as<string>());
                         if (authors.empty()) continue;
@@ -188,7 +191,8 @@ int main() {
             } else if (cmd == "ShowBooks") {
                 try {
                     pqxx::connection conn(db_url);
-                    auto res = conn.exec("SELECT b.title, a.name, b.publication_year FROM books b JOIN authors a ON b.author_id = a.id ORDER BY b.title, a.name, b.publication_year");
+                    pqxx::nontransaction t(conn);
+                    auto res = t.exec("SELECT b.title, a.name, b.publication_year FROM books b JOIN authors a ON b.author_id = a.id ORDER BY b.title, a.name, b.publication_year");
                     int i = 1;
                     for (const auto& row : res) {
                         cout << i++ << " " << row[0].as<string>() << " by " << row[1].as<string>() << ", " << row[2].as<int>() << endl;
@@ -200,12 +204,13 @@ int main() {
                 
                 try {
                     pqxx::connection conn(db_url);
+                    pqxx::nontransaction t(conn);
                     
-                    auto res = conn.exec_params(
+                    auto res = t.exec_params(
                         "SELECT b.id, b.title, a.name, b.publication_year "
                         "FROM books b JOIN authors a ON b.author_id = a.id "
                         "WHERE b.title = $1 "
-                        "ORDER BY b.title, a.name, b.publication_year", title);
+                        "ORDER BY b.title, a.name, b.publication_year", title.c_str());
                     
                     if (res.empty()) {
                         continue;
@@ -217,7 +222,7 @@ int main() {
                         cout << "Author: " << row[2].as<string>() << endl;
                         cout << "Publication year: " << row[3].as<int>() << endl;
                         
-                        auto tag_res = conn.exec_params("SELECT tag FROM book_tags WHERE book_id = $1 ORDER BY tag", row[0].as<string>());
+                        auto tag_res = t.exec_params("SELECT tag FROM book_tags WHERE book_id = $1 ORDER BY tag", row[0].as<string>());
                         if (!tag_res.empty()) {
                             cout << "Tags: ";
                             for (size_t j = 0; j < tag_res.size(); ++j) {
@@ -229,6 +234,7 @@ int main() {
                         continue;
                     }
                     
+                    // Multiple books - show selection
                     cout << "Select book:" << endl;
                     vector<string> book_ids;
                     for (size_t i = 0; i < res.size(); ++i) {
@@ -249,7 +255,7 @@ int main() {
                     cout << "Author: " << row[2].as<string>() << endl;
                     cout << "Publication year: " << row[3].as<int>() << endl;
                     
-                    auto tag_res = conn.exec_params("SELECT tag FROM book_tags WHERE book_id = $1 ORDER BY tag", book_ids[choice - 1]);
+                    auto tag_res = t.exec_params("SELECT tag FROM book_tags WHERE book_id = $1 ORDER BY tag", book_ids[choice - 1]);
                     if (!tag_res.empty()) {
                         cout << "Tags: ";
                         for (size_t j = 0; j < tag_res.size(); ++j) {
@@ -259,186 +265,6 @@ int main() {
                         cout << endl;
                     }
                 } catch (...) {}
-                
-            } else if (cmd == "DeleteBook") {
-                string title = trim(line.substr(cmd.length()));
-                
-                try {
-                    pqxx::connection conn(db_url);
-                    
-                    if (!title.empty()) {
-                        auto res = conn.exec_params(
-                            "SELECT id FROM books WHERE title = $1", title);
-                        
-                        if (res.empty()) {
-                            cout << "Failed to delete book" << endl;
-                            continue;
-                        }
-                        
-                        if (res.size() == 1) {
-                            string book_id = res[0][0].as<string>();
-                            pqxx::work w(conn);
-                            w.exec_params("DELETE FROM books WHERE id = $1", book_id);
-                            w.commit();
-                            continue;
-                        } else {
-                            cout << "Select book:" << endl;
-                            vector<pair<string, string>> books_list;
-                            auto full_res = conn.exec_params(
-                                "SELECT b.id, b.title, a.name, b.publication_year "
-                                "FROM books b JOIN authors a ON b.author_id = a.id "
-                                "WHERE b.title = $1", title);
-                            for (size_t i = 0; i < full_res.size(); ++i) {
-                                const auto& row = full_res[i];
-                                cout << i + 1 << " " << row[1].as<string>() << " by " 
-                                     << row[2].as<string>() << ", " << row[3].as<int>() << endl;
-                                books_list.push_back({row[0].as<string>(), row[1].as<string>()});
-                            }
-                            cout << "Enter the book # or empty line to cancel:" << endl;
-                            string choice_line;
-                            getline(cin, choice_line);
-                            if (choice_line.empty()) continue;
-                            int choice = stoi(choice_line);
-                            if (choice < 1 || choice > (int)books_list.size()) {
-                                cout << "Failed to delete book" << endl;
-                                continue;
-                            }
-                            
-                            pqxx::work w(conn);
-                            w.exec_params("DELETE FROM books WHERE id = $1", books_list[choice - 1].first);
-                            w.commit();
-                            continue;
-                        }
-                    }
-                    
-                    auto all_books = conn.exec(
-                        "SELECT id, title, a.name, publication_year "
-                        "FROM books b JOIN authors a ON b.author_id = a.id "
-                        "ORDER BY title, a.name, publication_year");
-                    
-                    if (all_books.empty()) {
-                        cout << "Failed to delete book" << endl;
-                        continue;
-                    }
-                    
-                    cout << "Select book:" << endl;
-                    vector<string> book_ids;
-                    for (size_t i = 0; i < all_books.size(); ++i) {
-                        const auto& row = all_books[i];
-                        cout << i + 1 << " " << row[1].as<string>() << " by " 
-                             << row[2].as<string>() << ", " << row[3].as<int>() << endl;
-                        book_ids.push_back(row[0].as<string>());
-                    }
-                    cout << "Enter the book # or empty line to cancel:" << endl;
-                    string choice_line;
-                    getline(cin, choice_line);
-                    if (choice_line.empty()) continue;
-                    int choice = stoi(choice_line);
-                    if (choice < 1 || choice > (int)book_ids.size()) {
-                        cout << "Failed to delete book" << endl;
-                        continue;
-                    }
-                    
-                    pqxx::work w(conn);
-                    w.exec_params("DELETE FROM books WHERE id = $1", book_ids[choice - 1]);
-                    w.commit();
-                } catch (...) {
-                    cout << "Failed to delete book" << endl;
-                }
-                
-            } else if (cmd == "EditBook") {
-                string title = trim(line.substr(cmd.length()));
-                
-                try {
-                    pqxx::connection conn(db_url);
-                    
-                    auto res = conn.exec_params(
-                        "SELECT b.id, b.title FROM books b WHERE b.title = $1", title);
-                    
-                    if (res.empty() && !title.empty()) {
-                        cout << "Book not found" << endl;
-                        continue;
-                    }
-                    
-                    string book_id;
-                    string current_title;
-                    
-                    if (res.size() == 1 && !title.empty()) {
-                        book_id = res[0][0].as<string>();
-                        current_title = res[0][1].as<string>();
-                    } else {
-                        auto all_books = conn.exec(
-                            "SELECT id, title FROM books ORDER BY title");
-                        
-                        if (all_books.empty()) {
-                            cout << "Book not found" << endl;
-                            continue;
-                        }
-                        
-                        cout << "Select book:" << endl;
-                        vector<pair<string, string>> select_books;
-                        for (size_t i = 0; i < all_books.size(); ++i) {
-                            const auto& row = all_books[i];
-                            auto author_res = conn.exec_params(
-                                "SELECT a.name FROM authors a JOIN books b ON b.author_id = a.id WHERE b.id = $1", row[0].as<string>());
-                            string author_name = author_res.empty() ? "" : author_res[0][0].as<string>();
-                            cout << i + 1 << " " << row[1].as<string>() << " by " << author_name << endl;
-                            select_books.push_back({row[0].as<string>(), row[1].as<string>()});
-                        }
-                        cout << "Enter the book # or empty line to cancel:" << endl;
-                        string choice_line;
-                        getline(cin, choice_line);
-                        if (choice_line.empty()) continue;
-                        int choice = stoi(choice_line);
-                        if (choice < 1 || choice > (int)select_books.size()) continue;
-                        
-                        book_id = select_books[choice - 1].first;
-                        current_title = select_books[choice - 1].second;
-                    }
-                    
-                    cout << "Enter new title or empty line to use the current one (" << current_title << "):" << endl;
-                    string new_title;
-                    getline(cin, new_title);
-                    new_title = trim(new_title);
-                    if (new_title.empty()) new_title = current_title;
-                    
-                    auto year_res = conn.exec_params("SELECT publication_year FROM books WHERE id = $1", book_id);
-                    int current_year = year_res[0][0].as<int>();
-                    cout << "Enter publication year or empty line to use the current one (" << current_year << "):" << endl;
-                    string year_str;
-                    getline(cin, year_str);
-                    int new_year = current_year;
-                    if (!year_str.empty()) new_year = stoi(year_str);
-                    
-                    auto tag_res = conn.exec_params("SELECT tag FROM book_tags WHERE book_id = $1 ORDER BY tag", book_id);
-                    string tags_str;
-                    for (size_t i = 0; i < tag_res.size(); ++i) {
-                        if (i > 0) tags_str += ", ";
-                        tags_str += tag_res[i][0].as<string>();
-                    }
-                    cout << "Enter tags (current tags: " << (tags_str.empty() ? "none" : tags_str) << "):" << endl;
-                    string tags_line;
-                    getline(cin, tags_line);
-                    
-                    vector<string> new_tags;
-                    if (tags_line.empty()) {
-                        for (const auto& row : tag_res) {
-                            new_tags.push_back(row[0].as<string>());
-                        }
-                    } else {
-                        new_tags = parse_tags(tags_line);
-                    }
-                    
-                    pqxx::work w(conn);
-                    w.exec_params("UPDATE books SET title = $1, publication_year = $2 WHERE id = $3", new_title, new_year, book_id);
-                    w.exec_params("DELETE FROM book_tags WHERE book_id = $1", book_id);
-                    for (const auto& tag : new_tags) {
-                        w.exec_params("INSERT INTO book_tags (book_id, tag) VALUES ($1, $2)", book_id, tag);
-                    }
-                    w.commit();
-                } catch (...) {
-                    cout << "Book not found" << endl;
-                }
                 
             } else if (cmd == "AddBook") {
                 int year;
@@ -455,7 +281,8 @@ int main() {
                 if (!author_input.empty()) {
                     try {
                         pqxx::connection conn(db_url);
-                        auto res = conn.exec_params("SELECT id FROM authors WHERE name = $1", author_input);
+                        pqxx::nontransaction t(conn);
+                        auto res = t.exec_params("SELECT id FROM authors WHERE name = $1", author_input.c_str());
                         if (!res.empty()) {
                             author_id = res[0][0].as<string>();
                         } else {
@@ -478,7 +305,8 @@ int main() {
                 } else {
                     try {
                         pqxx::connection conn(db_url);
-                        auto res = conn.exec("SELECT id, name FROM authors ORDER BY name");
+                        pqxx::nontransaction t(conn);
+                        auto res = t.exec("SELECT id, name FROM authors ORDER BY name");
                         vector<pair<string,string>> authors;
                         for (const auto& row : res) authors.push_back({row[0].as<string>(), row[1].as<string>()});
                         if (authors.empty()) {
