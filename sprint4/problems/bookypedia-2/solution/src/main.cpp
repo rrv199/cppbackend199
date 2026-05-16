@@ -85,32 +85,18 @@ int main() {
             iss >> cmd;
             
             if (cmd == "AddAuthor") {
-                string name = trim(line.substr(cmd.length()));
-                if (name.empty()) {
+                string author_name = trim(line.substr(cmd.length()));
+                if (author_name.empty()) {
                     cout << "Failed to add author" << endl;
                     continue;
                 }
                 try {
                     pqxx::connection conn(db_url);
                     pqxx::work w(conn);
-                    try {
-                        pqxx::connection conn(db_url);
-                        pqxx::work w(conn);
-                        w.exec_params("INSERT INTO authors (id, name) VALUES ($1, $2)", generate_uuid(), name);
-                        w.commit();
-                    } catch (const exception& e) {
-                        string err = e.what();
-                        if (err.find("duplicate") != string::npos) {
-                            cout << "Failed to add author" << endl;
-                        } else {
-                            cout << "Failed to add author" << endl;
-                        }
-                    }
+                    w.exec_params("INSERT INTO authors (id, name) VALUES ($1, $2)", generate_uuid(), author_name);
+                    w.commit();
                 } catch (const exception& e) {
-                    string err = e.what();
-                    if (err.find("duplicate") == string::npos) {
-                        cout << "Failed to add author" << endl;
-                    }
+                    cout << "Failed to add author" << endl;
                 }
                 
             } else if (cmd == "ShowAuthors") {
@@ -123,6 +109,84 @@ int main() {
                         cout << i++ << " " << row[0].as<string>() << endl;
                     }
                 } catch (...) {}
+                
+            } else if (cmd == "DeleteAuthor") {
+                string name = trim(line.substr(cmd.length()));
+                if (name.empty()) {
+                    try {
+                        pqxx::connection conn(db_url);
+                        pqxx::nontransaction t(conn);
+                        auto res = t.exec("SELECT name FROM authors ORDER BY name");
+                        vector<string> authors;
+                        for (const auto& row : res) authors.push_back(row[0].as<string>());
+                        if (authors.empty()) continue;
+                        cout << "Select author:" << endl;
+                        for (size_t i = 0; i < authors.size(); i++) cout << i+1 << " " << authors[i] << endl;
+                        cout << "Enter author # or empty line to cancel" << endl;
+                        string choice;
+                        getline(cin, choice);
+                        if (choice.empty()) continue;
+                        int idx = stoi(choice);
+                        if (idx < 1 || idx > (int)authors.size()) {
+                            cout << "Failed to delete author" << endl;
+                            continue;
+                        }
+                        name = authors[idx-1];
+                    } catch (...) {
+                        cout << "Failed to delete author" << endl;
+                        continue;
+                    }
+                }
+                try {
+                    pqxx::connection conn(db_url);
+                    pqxx::work w(conn);
+                    auto res = w.exec_params("DELETE FROM authors WHERE name = $1 RETURNING id", name);
+                    w.commit();
+                    if (res.empty()) cout << "Failed to delete author" << endl;
+                } catch (...) {
+                    cout << "Failed to delete author" << endl;
+                }
+                
+            } else if (cmd == "EditAuthor") {
+                string name = trim(line.substr(cmd.length()));
+                if (name.empty()) {
+                    try {
+                        pqxx::connection conn(db_url);
+                        pqxx::nontransaction t(conn);
+                        auto res = t.exec("SELECT name FROM authors ORDER BY name");
+                        vector<string> authors;
+                        for (const auto& row : res) authors.push_back(row[0].as<string>());
+                        if (authors.empty()) continue;
+                        cout << "Select author:" << endl;
+                        for (size_t i = 0; i < authors.size(); i++) cout << i+1 << " " << authors[i] << endl;
+                        cout << "Enter author # or empty line to cancel" << endl;
+                        string choice;
+                        getline(cin, choice);
+                        if (choice.empty()) continue;
+                        int idx = stoi(choice);
+                        if (idx < 1 || idx > (int)authors.size()) {
+                            cout << "Failed to edit author" << endl;
+                            continue;
+                        }
+                        name = authors[idx-1];
+                    } catch (...) {
+                        cout << "Failed to edit author" << endl;
+                        continue;
+                    }
+                }
+                cout << "Enter new name:" << endl;
+                string new_name;
+                getline(cin, new_name);
+                new_name = trim(new_name);
+                try {
+                    pqxx::connection conn(db_url);
+                    pqxx::work w(conn);
+                    auto res = w.exec_params("UPDATE authors SET name = $1 WHERE name = $2 RETURNING id", new_name, name);
+                    w.commit();
+                    if (res.empty()) cout << "Failed to edit author" << endl;
+                } catch (...) {
+                    cout << "Failed to edit author" << endl;
+                }
                 
             } else if (cmd == "ShowBooks") {
                 try {
@@ -197,10 +261,9 @@ int main() {
                 
                 try {
                     pqxx::connection conn(db_url);
-                    // Используем read_transaction для чтения
-                    pqxx::read_transaction r(conn);
+                    pqxx::nontransaction t(conn);
                     
-                    auto res = r.exec_params("SELECT id, title, publication_year FROM books WHERE title = $1", title.c_str());
+                    auto res = t.exec_params("SELECT id, title, publication_year FROM books WHERE title = $1", title.c_str());
                     if (res.empty()) {
                         cout << "Book not found" << endl;
                         continue;
@@ -210,7 +273,7 @@ int main() {
                     string current_title = res[0][1].as<string>();
                     int current_year = res[0][2].as<int>();
                     
-                    auto tag_res = r.exec_params("SELECT tag FROM book_tags WHERE book_id = $1 ORDER BY tag", book_id);
+                    auto tag_res = t.exec_params("SELECT tag FROM book_tags WHERE book_id = $1 ORDER BY tag", book_id);
                     string current_tags;
                     for (size_t i = 0; i < tag_res.size(); ++i) {
                         if (i > 0) current_tags += ", ";
@@ -242,7 +305,6 @@ int main() {
                         new_tags = parse_tags(tags_line);
                     }
                     
-                    // Для записи используем новое соединение
                     pqxx::connection conn2(db_url);
                     pqxx::work w(conn2);
                     w.exec_params("UPDATE books SET title = $1, publication_year = $2 WHERE id = $3", 
@@ -298,19 +360,8 @@ int main() {
                             }
                             author_id = generate_uuid();
                             pqxx::work w(conn);
-                    try {
-                        pqxx::connection conn(db_url);
-                        pqxx::work w(conn);
-                        w.exec_params("INSERT INTO authors (id, name) VALUES ($1, $2)", generate_uuid(), name);
-                        w.commit();
-                    } catch (const exception& e) {
-                        string err = e.what();
-                        if (err.find("duplicate") != string::npos) {
-                            cout << "Failed to add author" << endl;
-                        } else {
-                            cout << "Failed to add author" << endl;
-                        }
-                    }
+                            w.exec_params("INSERT INTO authors (id, name) VALUES ($1, $2)", author_id, author_input);
+                            w.commit();
                         }
                     } catch (...) {
                         cout << "Failed to add book" << endl;
