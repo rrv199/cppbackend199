@@ -9,7 +9,6 @@
 
 using namespace std;
 
-// Helper functions
 void EnsureTablesExist(pqxx::connection& conn) {
     pqxx::work w(conn);
     w.exec(
@@ -28,30 +27,27 @@ void EnsureTablesExist(pqxx::connection& conn) {
 
 void PrintAuthors(const vector<domain::Author>& authors) {
     for (size_t i = 0; i < authors.size(); ++i) {
-        cout << i + 1 << ". " << authors[i].GetName() << endl;
+        cout << i + 1 << " " << authors[i].GetName() << endl;  // Без точки
     }
 }
 
 void PrintBooks(const vector<domain::Book>& books) {
     for (size_t i = 0; i < books.size(); ++i) {
-        cout << i + 1 << ". " << books[i].GetTitle() << ", " << books[i].GetPublicationYear() << endl;
+        cout << i + 1 << " " << books[i].GetTitle() << ", " << books[i].GetPublicationYear() << endl;  // Без точки
     }
 }
 
 int main() {
     try {
-        // Get database URL from environment
         const char* db_url = getenv("BOOKYPEDIA_DB_URL");
         if (!db_url) {
             cerr << "BOOKYPEDIA_DB_URL environment variable not set" << endl;
             return 1;
         }
         
-        // Connect to database
         auto conn = make_shared<pqxx::connection>(db_url);
         EnsureTablesExist(*conn);
         
-        // Create repositories and use cases
         auto author_repo = make_unique<repository::AuthorRepositoryImpl>(conn);
         auto book_repo = make_unique<repository::BookRepositoryImpl>(conn);
         app::UseCasesImpl use_cases(move(author_repo), move(book_repo));
@@ -67,7 +63,6 @@ int main() {
             if (command == "AddAuthor") {
                 string name;
                 getline(iss, name);
-                // Trim whitespace
                 size_t start = name.find_first_not_of(" \t");
                 if (start != string::npos) {
                     name = name.substr(start);
@@ -92,7 +87,6 @@ int main() {
                 iss >> year;
                 string title;
                 getline(iss, title);
-                // Trim title
                 size_t start = title.find_first_not_of(" \t");
                 if (start != string::npos) {
                     title = title.substr(start);
@@ -103,9 +97,7 @@ int main() {
                 }
                 
                 auto authors = use_cases.GetAuthorsForSelection();
-                if (authors.empty()) {
-                    continue;
-                }
+                if (authors.empty()) continue;
                 
                 cout << "Select author:" << endl;
                 PrintAuthors(authors);
@@ -113,9 +105,7 @@ int main() {
                 
                 string choice_line;
                 getline(cin, choice_line);
-                if (choice_line.empty()) {
-                    continue;
-                }
+                if (choice_line.empty()) continue;
                 
                 int choice = stoi(choice_line);
                 if (choice >= 1 && choice <= static_cast<int>(authors.size())) {
@@ -124,9 +114,7 @@ int main() {
                 
             } else if (command == "ShowAuthorBooks") {
                 auto authors = use_cases.GetAuthorsForSelection();
-                if (authors.empty()) {
-                    continue;
-                }
+                if (authors.empty()) continue;
                 
                 cout << "Select author:" << endl;
                 PrintAuthors(authors);
@@ -134,9 +122,7 @@ int main() {
                 
                 string choice_line;
                 getline(cin, choice_line);
-                if (choice_line.empty()) {
-                    continue;
-                }
+                if (choice_line.empty()) continue;
                 
                 int choice = stoi(choice_line);
                 if (choice >= 1 && choice <= static_cast<int>(authors.size())) {
