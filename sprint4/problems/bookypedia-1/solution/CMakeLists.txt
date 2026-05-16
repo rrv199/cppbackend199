@@ -12,9 +12,6 @@ find_package(Boost REQUIRED)
 set(THREADS_PREFER_PTHREAD_FLAG ON)
 find_package(Threads REQUIRED)
 
-# Устанавливаем выходную директорию для бинарника
-set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
-
 add_executable(bookypedia
     src/main.cpp
     src/domain/author.cpp
@@ -29,3 +26,10 @@ target_link_libraries(bookypedia
 )
 
 target_include_directories(bookypedia PRIVATE src)
+
+# Копируем бинарник в корень build после сборки
+add_custom_command(TARGET bookypedia POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        $<TARGET_FILE:bookypedia>
+        ${CMAKE_BINARY_DIR}/bookypedia
+)
