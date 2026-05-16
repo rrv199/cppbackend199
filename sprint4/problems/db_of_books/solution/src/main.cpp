@@ -57,14 +57,15 @@ public:
         // Строка для подключения к postgres
         std::string admin_conn = "host=" + host + " port=" + port + " user=" + user + " password=" + password + " dbname=postgres";
         
-        // Создаем базу данных если её нет
+        // Создаем базу данных если её нет (вне транзакции)
         try {
             pqxx::connection admin_conn_obj(admin_conn);
-            pqxx::work w(admin_conn_obj);
-            w.exec("CREATE DATABASE " + dbname);
-            w.commit();
+            // Не используем транзакцию для CREATE DATABASE
+            pqxx::nontransaction nt(admin_conn_obj);
+            nt.exec("CREATE DATABASE " + dbname);
+            nt.commit();
         } catch (const pqxx::sql_error& e) {
-            // База данных уже существует
+            // База данных уже существует - игнорируем
         } catch (...) {
             // Игнорируем
         }
