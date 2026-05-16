@@ -93,8 +93,19 @@ int main() {
                 try {
                     pqxx::connection conn(db_url);
                     pqxx::work w(conn);
-                    w.exec_params("INSERT INTO authors (id, name) VALUES ($1, $2)", generate_uuid(), name);
-                    w.commit();
+                    try {
+                        pqxx::connection conn(db_url);
+                        pqxx::work w(conn);
+                        w.exec_params("INSERT INTO authors (id, name) VALUES ($1, $2)", generate_uuid(), name);
+                        w.commit();
+                    } catch (const exception& e) {
+                        string err = e.what();
+                        if (err.find("duplicate") != string::npos) {
+                            cout << "Failed to add author" << endl;
+                        } else {
+                            cout << "Failed to add author" << endl;
+                        }
+                    }
                 } catch (const exception& e) {
                     string err = e.what();
                     if (err.find("duplicate") == string::npos) {
@@ -287,8 +298,19 @@ int main() {
                             }
                             author_id = generate_uuid();
                             pqxx::work w(conn);
-                            w.exec_params("INSERT INTO authors (id, name) VALUES ($1, $2)", author_id, author_input);
-                            w.commit();
+                    try {
+                        pqxx::connection conn(db_url);
+                        pqxx::work w(conn);
+                        w.exec_params("INSERT INTO authors (id, name) VALUES ($1, $2)", generate_uuid(), name);
+                        w.commit();
+                    } catch (const exception& e) {
+                        string err = e.what();
+                        if (err.find("duplicate") != string::npos) {
+                            cout << "Failed to add author" << endl;
+                        } else {
+                            cout << "Failed to add author" << endl;
+                        }
+                    }
                         }
                     } catch (...) {
                         cout << "Failed to add book" << endl;
