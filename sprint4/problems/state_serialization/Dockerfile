@@ -1,4 +1,4 @@
-FROM ubuntu:22.04 as builder
+FROM ubuntu:22.04
 
 RUN apt update && apt install -y \
     build-essential \
@@ -13,18 +13,7 @@ RUN rm -rf build && mkdir build && cd build && \
     cmake .. && \
     make -j4
 
-FROM ubuntu:22.04
+WORKDIR /app/build
 
-RUN apt update && apt install -y \
-    libboost-serialization1.74-dev \
-    libboost-filesystem1.74-dev \
-    && rm -rf /var/lib/apt/lists/*
-
-COPY --from=builder /app/build/serialization_tests /app/game_server
-
-WORKDIR /app
-
-EXPOSE 8080
-
-ENTRYPOINT ["./game_server"]
+ENTRYPOINT ["./serialization_tests"]
 CMD ["-s"]
