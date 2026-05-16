@@ -9,49 +9,10 @@ using json = nlohmann::json;
 
 class BookManager {
 public:
-    BookManager(const std::string& conn_string) {
-        // Парсим строку подключения
-        std::string dbname;
-        std::string host;
-        std::string port;
-        std::string user;
-        std::string password;
-        
-        // Простой парсинг postgres://user:password@host:port/dbname
-        size_t start = conn_string.find("://");
-        if (start != std::string::npos) {
-            size_t user_end = conn_string.find(":", start + 3);
-            size_t pass_end = conn_string.find("@", user_end + 1);
-            size_t host_end = conn_string.find(":", pass_end + 1);
-            size_t port_end = conn_string.find("/", host_end + 1);
-            
-            if (user_end != std::string::npos && pass_end != std::string::npos) {
-                user = conn_string.substr(start + 3, user_end - start - 3);
-                password = conn_string.substr(user_end + 1, pass_end - user_end - 1);
-            }
-            if (host_end != std::string::npos && port_end != std::string::npos) {
-                host = conn_string.substr(pass_end + 1, host_end - pass_end - 1);
-                port = conn_string.substr(host_end + 1, port_end - host_end - 1);
-                dbname = conn_string.substr(port_end + 1);
-            }
-        }
-        
-        // Сначала подключаемся к postgres и создаем базу данных если нужно
-        std::string admin_conn = "host=" + host + " port=" + port + " user=" + user + " password=" + password + " dbname=postgres";
-        try {
-            pqxx::connection admin_conn_obj(admin_conn);
-            pqxx::work w(admin_conn_obj);
-            w.exec("CREATE DATABASE " + dbname);
-            w.commit();
-        } catch (...) {
-            // База данных уже существует
-        }
-        
-        // Теперь подключаемся к нужной базе данных
-        conn_ = std::make_shared<pqxx::connection>(conn_string);
+    BookManager(const std::string& conn_string) 
+        : conn_(std::make_shared<pqxx::connection>(conn_string)) {
         prepareStatements();
-        
-        // Создаем таблицу
+        // Просто создаем таблицу если её нет
         try {
             pqxx::work w(*conn_);
             w.exec(
@@ -63,7 +24,7 @@ public:
                 "isbn char(13) UNIQUE)");
             w.commit();
         } catch (...) {
-            // Игнорируем
+            // Игнорируем ошибки подключения
         }
     }
     
@@ -80,16 +41,17 @@ public:
             
             w.commit();
             return true;
+        } catch (const pqxx::sql_error& e) {
+            return false;
         } catch (...) {
             return false;
         }
     }
     
     json getAllBooks() {
-        pqxx::read_transaction r(*conn_);
         json result = json::array();
-        
         try {
+            pqxx::read_transaction r(*conn_);
             pqxx::result res = r.exec(
                 "SELECT id, title, author, year, isbn FROM books "
                 "ORDER BY year DESC, title ASC, author ASC, isbn ASC");
@@ -111,7 +73,6 @@ public:
         } catch (...) {
             // Возвращаем пустой массив
         }
-        
         return result;
     }
     
@@ -168,7 +129,7 @@ int main(int argc, char* argv[]) {
                     std::cout << response.dump() << std::endl;
                 }
                 
-            } catch (...) {
+            } catch (const std::exception& e) {
                 json response = {{"result", false}};
                 std::cout << response.dump() << std::endl;
             }
@@ -176,7 +137,7 @@ int main(int argc, char* argv[]) {
         
         return EXIT_SUCCESS;
         
-    } catch (...) {
+    } catch (const std::exception& e) {
         return EXIT_FAILURE;
     }
 }
