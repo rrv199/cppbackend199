@@ -90,7 +90,6 @@ jobs:
         - /var/run/docker.sock:/var/run/docker.sock
       options: --name main-container
     steps:
-
       - name: get docker network
         run: echo "DOCKER_NETWORK=$(docker inspect main-container -f '{{range $k, $v := .NetworkSettings.Networks}}{{printf "%s" $k}}{{end}}')" >> $GITHUB_ENV
 
@@ -112,7 +111,8 @@ jobs:
 
       - name: run tests sprint2 logger
         run: |
-          ./cpp-backend-tests-practicum/scripts/sprint2/logger/run.sh
+          cd cpp-backend-tests-practicum/scripts/sprint2
+          ./logger/run.sh
 
       - name: run tests sprint2 server_logging
         run: |
@@ -144,12 +144,10 @@ jobs:
           cd cpp-backend-tests-practicum/scripts/sprint2
           ./command_line/run.sh
 
-
   sprint_3:
     if: github.repository_owner != 'cpppracticum'
     runs-on: ubuntu-22.04
     steps:
-
       - name: Checkout code & tests
         uses: actions/checkout@v3
         with:
@@ -166,14 +164,6 @@ jobs:
         run: |
           cd cpp-backend-tests-practicum/scripts/sprint3
           ./instrumentation/run.sh
-
-#      - name: Load map_json binary
-#        uses: actions/download-artifact@v3
-#        with:
-#          name: game_server
-#          path: ${{ github.workspace }}/sprint1/problems/map_json/solution/build/bin
-
-#      - run: chmod +x ${GITHUB_WORKSPACE}/sprint1/problems/map_json/solution/build/bin/game_server
 
       - name: Load FlameGraph
         uses: actions/checkout@v3
@@ -263,7 +253,6 @@ jobs:
     if: github.repository_owner != 'cpppracticum'
     runs-on: ubuntu-22.04
     steps:
-
       - name: Checkout code & tests
         uses: actions/checkout@v3
         with:
@@ -275,6 +264,12 @@ jobs:
           pip install -U conan==1.59.0
           pip install -r requirements.txt
           pip show pytest
+
+      # КЛЮЧЕВОЙ ШАГ: Сборка Docker образа перед тестами
+      - name: Build state_serialization Docker image
+        run: |
+          cd sprint4/problems/state_serialization
+          docker build -t state_serialization:latest .
 
       - name: run tests sprint4 state_serialization
         run: |
@@ -301,7 +296,6 @@ jobs:
         ports:
           - 8080:8080
     steps:
-
       - name: Checkout code & tests
         uses: actions/checkout@v3
         with:
@@ -317,20 +311,11 @@ jobs:
           cd cpp-backend-tests-practicum/scripts/sprint3
           ./load/run_ci.sh
 
-##      - name: run tests sprint3 stress
-##        run: |
-##          cd sprint3/problems/stress/solution
-##          yandex-tank -c ${GITHUB_WORKSPACE}/sprint3/problems/stress/solution/load.yaml ${GITHUB_WORKSPACE}/sprint3/problems/stress/solution/ammo.txt
-##          pytest --junitxml=${GITHUB_WORKSPACE}/stress.xml ${GITHUB_WORKSPACE}/cpp-backend-tests-practicum/tests/test_s03_stress.py
-##        env:
-##          DIRECTORY: ${{ github.workspace }}/sprint3/problems/stress/solution/logs
-#
       - name: Publish XML reports
         uses: EnricoMi/publish-unit-test-result-action@v2
         if: always()
         with:
           junit_files: ${{ github.workspace }}/*.xml
-
 
   sprint_4_with_postgress:
     if: github.repository_owner != 'cpppracticum'
@@ -349,7 +334,6 @@ jobs:
           POSTGRES_PASSWORD: Mys3Cr3t
           POSTGRES_HOST: postgres
           POSTGRES_PORT: 5432
-
     steps:
       - name: get docker network
         run: |
