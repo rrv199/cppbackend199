@@ -61,7 +61,7 @@ int main() {
     try {
         const char* db_url = getenv("BOOKYPEDIA_DB_URL");
         if (!db_url) {
-            cerr << "BOOKYPEDIA_DB_URL environment variable not set" << endl;
+            cerr << "BOOKYPEDIA_DB_URL environment variable not set" << endl << flush;
             return 1;
         }
         
@@ -87,7 +87,7 @@ int main() {
             if (cmd == "AddAuthor") {
                 string name = trim(line.substr(cmd.length()));
                 if (name.empty()) {
-                    cout << "Failed to add author" << endl;
+                    cout << "Failed to add author" << endl << flush;
                     continue;
                 }
                 try {
@@ -98,7 +98,7 @@ int main() {
                 } catch (const exception& e) {
                     string err = e.what();
                     if (err.find("duplicate") == string::npos) {
-                        cout << "Failed to add author" << endl;
+                        cout << "Failed to add author" << endl << flush;
                     }
                 }
                 
@@ -109,7 +109,7 @@ int main() {
                     auto res = t.exec("SELECT name FROM authors ORDER BY name");
                     int i = 1;
                     for (const auto& row : res) {
-                        cout << i++ << " " << row[0].as<string>() << endl;
+                        cout << i++ << " " << row[0].as<string>() << endl << flush;
                     }
                 } catch (...) {}
                 
@@ -120,7 +120,7 @@ int main() {
                     auto res = t.exec("SELECT b.title, a.name, b.publication_year FROM books b JOIN authors a ON b.author_id = a.id ORDER BY b.title, a.name, b.publication_year");
                     int i = 1;
                     for (const auto& row : res) {
-                        cout << i++ << " " << row[0].as<string>() << " by " << row[1].as<string>() << ", " << row[2].as<int>() << endl;
+                        cout << i++ << " " << row[0].as<string>() << " by " << row[1].as<string>() << ", " << row[2].as<int>() << endl << flush;
                     }
                 } catch (...) {}
                 
@@ -142,21 +142,25 @@ int main() {
                     }
                     
                     const auto& row = res[0];
-                    cout << "Title: " << row[1].as<string>() << endl;
-                    cout << "Author: " << row[2].as<string>() << endl;
-                    cout << "Publication year: " << row[3].as<int>() << endl;
+                    cout << "Title: " << row[1].as<string>() << endl << flush;
+                    cout << flush;
+                    cout << "Author: " << row[2].as<string>() << endl << flush;
+                    cout << flush;
+                    cout << "Publication year: " << row[3].as<int>() << endl << flush;
+                    cout << flush;
                     
                     auto tag_res = t.exec_params("SELECT tag FROM book_tags WHERE book_id = $1 ORDER BY tag", row[0].as<string>());
                     if (!tag_res.empty()) {
                         cout << "Tags: ";
+                    cout << flush;
                         for (size_t j = 0; j < tag_res.size(); ++j) {
                             if (j > 0) cout << ", ";
                             cout << tag_res[j][0].as<string>();
                         }
-                        cout << endl;
+                        cout << endl << flush;
                     }
                 } catch (const exception& e) {
-                    cerr << "ShowBook error: " << e.what() << endl;
+                    cerr << "ShowBook error: " << e.what() << endl << flush;
                 }
                 
             } else if (cmd == "DeleteBook") {
@@ -169,15 +173,15 @@ int main() {
                     
                     auto res = w.exec_params("SELECT id FROM books WHERE title = $1", title.c_str());
                     if (res.empty()) {
-                        cout << "Failed to delete book" << endl;
+                        cout << "Failed to delete book" << endl << flush;
                         continue;
                     }
                     
                     w.exec_params("DELETE FROM books WHERE title = $1", title.c_str());
                     w.commit();
                 } catch (const exception& e) {
-                    cerr << "DeleteBook error: " << e.what() << endl;
-                    cout << "Failed to delete book" << endl;
+                    cerr << "DeleteBook error: " << e.what() << endl << flush;
+                    cout << "Failed to delete book" << endl << flush;
                 }
                 
             } else if (cmd == "EditBook") {
@@ -190,7 +194,7 @@ int main() {
                     
                     auto res = t.exec_params("SELECT id, title, publication_year FROM books WHERE title = $1", title.c_str());
                     if (res.empty()) {
-                        cout << "Book not found" << endl;
+                        cout << "Book not found" << endl << flush;
                         continue;
                     }
                     
@@ -205,19 +209,22 @@ int main() {
                         current_tags += tag_res[i][0].as<string>();
                     }
                     
-                    cout << "Enter new title or empty line to use the current one (" << current_title << "):" << endl;
+                    cout << "Enter new title or empty line to use the current one (" << current_title << "):" << endl << flush;
+                    cout << flush;
                     string new_title;
                     getline(cin, new_title);
                     new_title = trim(new_title);
                     if (new_title.empty()) new_title = current_title;
                     
-                    cout << "Enter publication year or empty line to use the current one (" << current_year << "):" << endl;
+                    cout << "Enter publication year or empty line to use the current one (" << current_year << "):" << endl << flush;
+                    cout << flush;
                     string year_str;
                     getline(cin, year_str);
                     int new_year = current_year;
                     if (!year_str.empty()) new_year = stoi(year_str);
                     
-                    cout << "Enter tags (current tags: " << (current_tags.empty() ? "none" : current_tags) << "):" << endl;
+                    cout << "Enter tags (current tags: " << (current_tags.empty() ? "none" : current_tags) << "):" << endl << flush;
+                    cout << flush;
                     string tags_line;
                     getline(cin, tags_line);
                     
@@ -241,8 +248,8 @@ int main() {
                     }
                     w.commit();
                 } catch (const exception& e) {
-                    cerr << "EditBook error: " << e.what() << endl;
-                    cout << "Book not found" << endl;
+                    cerr << "EditBook error: " << e.what() << endl << flush;
+                    cout << "Book not found" << endl << flush;
                 }
                 
             } else if (cmd == "AddBook") {
@@ -261,7 +268,7 @@ int main() {
                     }
                 }
                 
-                cout << "Enter author name or empty line to select from list:" << endl;
+                cout << "Enter author name or empty line to select from list:" << endl << flush;
                 string author_input;
                 getline(cin, author_input);
                 author_input = trim(author_input);
@@ -275,11 +282,11 @@ int main() {
                         if (!res.empty()) {
                             author_id = res[0][0].as<string>();
                         } else {
-                            cout << "No author found. Do you want to add " << author_input << " (y/n)?" << endl;
+                            cout << "No author found. Do you want to add " << author_input << " (y/n)?" << endl << flush;
                             string answer;
                             getline(cin, answer);
                             if (answer != "y" && answer != "Y") {
-                                cout << "Failed to add book" << endl;
+                                cout << "Failed to add book" << endl << flush;
                                 continue;
                             }
                             author_id = generate_uuid();
@@ -288,7 +295,7 @@ int main() {
                             w.commit();
                         }
                     } catch (...) {
-                        cout << "Failed to add book" << endl;
+                        cout << "Failed to add book" << endl << flush;
                         continue;
                     }
                 } else {
@@ -299,31 +306,32 @@ int main() {
                         vector<pair<string,string>> authors;
                         for (const auto& row : res) authors.push_back({row[0].as<string>(), row[1].as<string>()});
                         if (authors.empty()) {
-                            cout << "Failed to add book" << endl;
+                            cout << "Failed to add book" << endl << flush;
                             continue;
                         }
-                        cout << "Select author:" << endl;
-                        for (size_t i = 0; i < authors.size(); i++) cout << i+1 << " " << authors[i].second << endl;
-                        cout << "Enter author # or empty line to cancel" << endl;
+                        cout << "Select author:" << endl << flush;
+                        for (size_t i = 0; i < authors.size(); i++) cout << i+1 << " " << authors[i].second << endl << flush;
+                        cout << "Enter author # or empty line to cancel" << endl << flush;
                         string choice;
                         getline(cin, choice);
                         if (choice.empty()) {
-                            cout << "Failed to add book" << endl;
+                            cout << "Failed to add book" << endl << flush;
                             continue;
                         }
                         int idx = stoi(choice);
                         if (idx < 1 || idx > (int)authors.size()) {
-                            cout << "Failed to add book" << endl;
+                            cout << "Failed to add book" << endl << flush;
                             continue;
                         }
                         author_id = authors[idx-1].first;
                     } catch (...) {
-                        cout << "Failed to add book" << endl;
+                        cout << "Failed to add book" << endl << flush;
                         continue;
                     }
                 }
                 
-                cout << "Enter tags (comma separated):" << endl;
+                cout << "Enter tags (comma separated):" << endl << flush;
+                    cout << flush;
                 string tags_line;
                 getline(cin, tags_line);
                 auto tags = parse_tags(tags_line);
@@ -339,13 +347,13 @@ int main() {
                     }
                     w.commit();
                 } catch (const exception& e) {
-                    cerr << "DB Error: " << e.what() << endl;
-                    cout << "Failed to add book" << endl;
+                    cerr << "DB Error: " << e.what() << endl << flush;
+                    cout << "Failed to add book" << endl << flush;
                 }
             }
         }
     } catch (const exception& e) {
-        cerr << "Error: " << e.what() << endl;
+        cerr << "Error: " << e.what() << endl << flush;
         return 1;
     }
     return 0;
