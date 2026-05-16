@@ -4,11 +4,6 @@ project(book_manager LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-# Отключаем создание поддиректорий для бинарников
-set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
-set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
-set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
-
 include(${CMAKE_BINARY_DIR}/conanbuildinfo.cmake)
 conan_basic_setup()
 
@@ -28,3 +23,10 @@ target_link_libraries(book_manager
 )
 
 target_include_directories(book_manager PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+
+# После сборки копируем бинарник в корень build
+add_custom_command(TARGET book_manager POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        $<TARGET_FILE:book_manager>
+        ${CMAKE_BINARY_DIR}/book_manager
+)
