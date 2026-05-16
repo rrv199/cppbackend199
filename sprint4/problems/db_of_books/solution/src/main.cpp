@@ -9,10 +9,47 @@ using json = nlohmann::json;
 
 class BookManager {
 public:
-    BookManager(const std::string& conn_string) 
-        : conn_(std::make_shared<pqxx::connection>(conn_string)) {
+    BookManager(const std::string& conn_string) {
+        // Извлекаем имя базы данных из строки подключения
+        std::string dbname;
+        std::string base_conn_string;
+        
+        // Парсим строку подключения
+        size_t last_slash = conn_string.rfind('/');
+        if (last_slash != std::string::npos) {
+            dbname = conn_string.substr(last_slash + 1);
+            base_conn_string = conn_string.substr(0, last_slash + 1) + "postgres";
+        } else {
+            dbname = "postgres";
+            base_conn_string = conn_string;
+        }
+        
+        // Проверяем, существует ли база данных
+        bool db_exists = false;
+        try {
+            pqxx::connection test_conn(conn_string);
+            db_exists = true;
+        } catch (const pqxx::broken_connection& e) {
+            db_exists = false;
+        }
+        
+        if (!db_exists) {
+            // Создаем базу данных
+            try {
+                pqxx::connection admin_conn(base_conn_string);
+                pqxx::work w(admin_conn);
+                w.exec("CREATE DATABASE " + dbname);
+                w.commit();
+            } catch (const std::exception& e) {
+                // Не удалось создать базу данных
+            }
+        }
+        
+        // Подключаемся к базе данных
+        conn_ = std::make_shared<pqxx::connection>(conn_string);
         prepareStatements();
-        // Просто создаем таблицу если её нет
+        
+        // Создаем таблицу
         try {
             pqxx::work w(*conn_);
             w.exec(
@@ -24,7 +61,7 @@ public:
                 "isbn char(13) UNIQUE)");
             w.commit();
         } catch (...) {
-            // Игнорируем ошибки подключения
+            // Игнорируем
         }
     }
     
