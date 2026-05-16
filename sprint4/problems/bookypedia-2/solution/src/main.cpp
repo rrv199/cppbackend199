@@ -312,3 +312,14 @@ int main() {
     }
     return 0;
 }
+                // Verify author exists
+                {
+                    pqxx::connection conn(db_url);
+                    pqxx::nontransaction t(conn);
+                    auto check = t.exec_params("SELECT id FROM authors WHERE id = $1", author_id);
+                    if (check.empty()) {
+                        cerr << "Author not found!" << endl;
+                        cout << "Failed to add book" << endl;
+                        continue;
+                    }
+                }
