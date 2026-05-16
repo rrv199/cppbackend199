@@ -78,6 +78,8 @@ int main() {
             w.commit();
         }
         
+        cout << flush;
+        
         string line;
         while (getline(cin, line)) {
             if (line.empty()) continue;
@@ -215,7 +217,6 @@ int main() {
                         "ORDER BY b.title, a.name, b.publication_year", title);
                     
                     if (res.empty()) {
-                        // No book found with this title
                         continue;
                     }
                     
@@ -237,7 +238,6 @@ int main() {
                         continue;
                     }
                     
-                    // Multiple books - show selection
                     cout << "Select book:" << endl;
                     vector<string> book_ids;
                     for (size_t i = 0; i < res.size(); ++i) {
@@ -319,7 +319,6 @@ int main() {
                         }
                     }
                     
-                    // No title provided - show all books
                     auto all_books = t.exec(
                         "SELECT id, title, a.name, publication_year "
                         "FROM books b JOIN authors a ON b.author_id = a.id "
@@ -362,7 +361,6 @@ int main() {
                     pqxx::connection conn(db_url);
                     pqxx::nontransaction t(conn);
                     
-                    // Find books
                     auto res = t.exec_params(
                         "SELECT b.id, b.title FROM books b WHERE b.title = $1", title);
                     
@@ -378,7 +376,6 @@ int main() {
                         book_id = res[0][0].as<string>();
                         current_title = res[0][1].as<string>();
                     } else {
-                        // Show all books for selection
                         auto all_books = t.exec(
                             "SELECT id, title FROM books ORDER BY title");
                         
@@ -538,6 +535,8 @@ int main() {
                     cout << "Failed to add book" << endl;
                 }
             }
+            
+            cout << flush;
         }
     } catch (const exception& e) {
         cerr << "Error: " << e.what() << endl;
