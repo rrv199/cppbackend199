@@ -12,13 +12,14 @@ find_package(Boost REQUIRED)
 set(THREADS_PREFER_PTHREAD_FLAG ON)
 find_package(Threads REQUIRED)
 
+# Устанавливаем выходную директорию для бинарника
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
+
 add_executable(bookypedia
     src/main.cpp
     src/domain/author.cpp
     src/domain/book.cpp
     src/app/use_cases_impl.cpp
-    src/repository/author_repository.cpp
-    src/repository/book_repository.cpp
 )
 
 target_link_libraries(bookypedia
