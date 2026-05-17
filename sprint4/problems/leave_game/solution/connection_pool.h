@@ -1,4 +1,5 @@
 #pragma once
+
 #include <memory>
 #include <mutex>
 #include <condition_variable>
@@ -21,13 +22,21 @@ public:
     public:
         ConnectionWrapper(ConnectionPtr&& conn, ConnectionPool& pool) noexcept
             : conn_(std::move(conn)), pool_(&pool) {}
-        
-        pqxx::connection& operator*() { return *conn_; }
-        pqxx::connection* operator->() { return conn_.get(); }
+
+        ConnectionWrapper(const ConnectionWrapper&) = delete;
+        ConnectionWrapper& operator=(const ConnectionWrapper&) = delete;
+        ConnectionWrapper(ConnectionWrapper&&) = default;
+        ConnectionWrapper& operator=(ConnectionWrapper&&) = default;
+
+        pqxx::connection& operator*() const& noexcept { return *conn_; }
+        pqxx::connection* operator->() const& noexcept { return conn_.get(); }
 
         ~ConnectionWrapper() {
-            if (conn_) pool_->ReturnConnection(std::move(conn_));
+            if (conn_) {
+                pool_->ReturnConnection(std::move(conn_));
+            }
         }
+
     private:
         ConnectionPtr conn_;
         ConnectionPool* pool_;
@@ -41,8 +50,11 @@ public:
 
 private:
     void ReturnConnection(ConnectionPtr&& conn) {
-        std::lock_guard lock(mutex_);
-        pool_[--used_connections_] = std::move(conn);
+        {
+            std::lock_guard lock(mutex_);
+            assert(used_connections_ != 0);
+            pool_[--used_connections_] = std::move(conn);
+        }
         cond_var_.notify_one();
     }
 
