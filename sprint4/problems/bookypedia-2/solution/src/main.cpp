@@ -84,7 +84,7 @@ int main() {
         }
         else if (cmd == "ShowAuthors") {
             pqxx::connection conn(db_url);
-            pqxx::nontransaction t(conn);
+            pqxx::read_transaction t(conn);
             auto res = t.exec("SELECT name FROM authors ORDER BY name");
             int i = 1;
             for (const auto& row : res) {
@@ -93,7 +93,7 @@ int main() {
         }
         else if (cmd == "ShowBooks") {
             pqxx::connection conn(db_url);
-            pqxx::nontransaction t(conn);
+            pqxx::read_transaction t(conn);
             auto res = t.exec("SELECT b.title, a.name, b.publication_year FROM books b JOIN authors a ON b.author_id = a.id ORDER BY b.title");
             int i = 1;
             for (const auto& row : res) {
@@ -114,7 +114,7 @@ int main() {
             string author_id;
             {
                 pqxx::connection conn(db_url);
-                pqxx::nontransaction t(conn);
+                pqxx::read_transaction t(conn);
                 auto res = t.exec_params("SELECT id FROM authors WHERE name = $1", author_name.c_str());
                 if (!res.empty()) {
                     author_id = res[0][0].as<string>();
