@@ -31,7 +31,7 @@ vector<string> parse_tags(const string& input) {
     while (getline(ss, tag, ',')) {
         string trimmed = trim(tag);
         if (trimmed.empty()) continue;
-        
+
         string normalized;
         bool in_space = false;
         for (char c : trimmed) {
@@ -64,7 +64,7 @@ int main() {
             cerr << "BOOKYPEDIA_DB_URL environment variable not set" << endl;
             return 1;
         }
-        
+
         // Initialize tables
         {
             pqxx::connection conn(db_url);
@@ -75,15 +75,15 @@ int main() {
             w.exec("CREATE TABLE IF NOT EXISTS book_tags (book_id uuid NOT NULL REFERENCES books(id) ON DELETE CASCADE, tag varchar(30) NOT NULL, PRIMARY KEY (book_id, tag));");
             w.commit();
         }
-        
+
         string line;
         while (getline(cin, line)) {
             if (line.empty()) continue;
-            
+
             istringstream iss(line);
             string cmd;
             iss >> cmd;
-            
+
             if (cmd == "AddAuthor") {
                 string name = trim(line.substr(cmd.length()));
                 if (name.empty()) {
@@ -101,7 +101,7 @@ int main() {
                         cout << "Failed to add author" << endl;
                     }
                 }
-                
+
             } else if (cmd == "ShowAuthors") {
                 try {
                     pqxx::connection conn(db_url);
@@ -112,7 +112,7 @@ int main() {
                         cout << i++ << " " << row[0].as<string>() << endl;
                     }
                 } catch (...) {}
-                
+
             } else if (cmd == "ShowBooks") {
                 try {
                     pqxx::connection conn(db_url);
@@ -123,29 +123,29 @@ int main() {
                         cout << i++ << " " << row[0].as<string>() << " by " << row[1].as<string>() << ", " << row[2].as<int>() << endl;
                     }
                 } catch (...) {}
-                
+
             } else if (cmd == "ShowBook") {
                 string title = trim(line.substr(cmd.length()));
                 if (title.empty()) continue;
-                
+
                 try {
                     pqxx::connection conn(db_url);
                     pqxx::nontransaction t(conn);
-                    
+
                     auto res = t.exec_params(
                         "SELECT b.id, b.title, a.name, b.publication_year "
                         "FROM books b JOIN authors a ON b.author_id = a.id "
                         "WHERE b.title = $1", title.c_str());
-                    
+
                     if (res.empty()) {
                         continue;
                     }
-                    
+
                     const auto& row = res[0];
                     cout << "Title: " << row[1].as<string>() << endl;
                     cout << "Author: " << row[2].as<string>() << endl;
                     cout << "Publication year: " << row[3].as<int>() << endl;
-                    
+
                     auto tag_res = t.exec_params("SELECT tag FROM book_tags WHERE book_id = $1 ORDER BY tag", row[0].as<string>());
                     if (!tag_res.empty()) {
                         cout << "Tags: ";
@@ -158,35 +158,41 @@ int main() {
                 } catch (const exception& e) {
                     cerr << "ShowBook error: " << e.what() << endl;
                 }
-                
+
             } else if (cmd == "DeleteBook") {
                 string title = trim(line.substr(cmd.length()));
                 if (title.empty()) continue;
-                
+
                 try {
                     pqxx::connection conn(db_url);
                     pqxx::work w(conn);
-                    
+
                     auto res = w.exec_params("SELECT id FROM books WHERE title = $1", title.c_str());
                     if (res.empty()) {
                         cout << "Failed to delete book" << endl;
                         continue;
                     }
-                    
+
                     w.exec_params("DELETE FROM books WHERE title = $1", title.c_str());
                     w.commit();
                 } catch (const exception& e) {
                     cerr << "DeleteBook error: " << e.what() << endl;
                     cout << "Failed to delete book" << endl;
                 }
-                
+
             } else if (cmd == "EditBook") {
                 string title = trim(line.substr(cmd.length()));
                 if (title.empty()) continue;
+
+                string book_id;
+                string current_title;
+                int current_year;
+                vector<string> existing_tags;
                 
-                try {
-                    pqxx::connection conn(db_url);
-                    pqxx::nontransaction t(conn);
+                // Чтение - используем отдельное соединение
+                {
+                    pqxx::connection conn_read(db_url);
+                    pqxx::nontransaction t(conn_read);
                     
                     auto res = t.exec_params("SELECT id, title, publication_year FROM books WHERE title = $1", title.c_str());
                     if (res.empty()) {
@@ -194,44 +200,50 @@ int main() {
                         continue;
                     }
                     
-                    string book_id = res[0][0].as<string>();
-                    string current_title = res[0][1].as<string>();
-                    int current_year = res[0][2].as<int>();
+                    book_id = res[0][0].as<string>();
+                    current_title = res[0][1].as<string>();
+                    current_year = res[0][2].as<int>();
                     
                     auto tag_res = t.exec_params("SELECT tag FROM book_tags WHERE book_id = $1 ORDER BY tag", book_id);
-                    string current_tags;
-                    for (size_t i = 0; i < tag_res.size(); ++i) {
-                        if (i > 0) current_tags += ", ";
-                        current_tags += tag_res[i][0].as<string>();
+                    for (const auto& row : tag_res) {
+                        existing_tags.push_back(row[0].as<string>());
                     }
-                    
-                    cout << "Enter new title or empty line to use the current one (" << current_title << "):" << endl;
-                    string new_title;
-                    getline(cin, new_title);
-                    new_title = trim(new_title);
-                    if (new_title.empty()) new_title = current_title;
-                    
-                    cout << "Enter publication year or empty line to use the current one (" << current_year << "):" << endl;
-                    string year_str;
-                    getline(cin, year_str);
-                    int new_year = current_year;
-                    if (!year_str.empty()) new_year = stoi(year_str);
-                    
-                    cout << "Enter tags (current tags: " << (current_tags.empty() ? "none" : current_tags) << "):" << endl;
-                    string tags_line;
-                    getline(cin, tags_line);
-                    
-                    vector<string> new_tags;
-                    if (tags_line.empty()) {
-                        for (const auto& row : tag_res) {
-                            new_tags.push_back(row[0].as<string>());
-                        }
-                    } else {
-                        new_tags = parse_tags(tags_line);
-                    }
-                    
-                    pqxx::work w(conn);
-                    w.exec_params("UPDATE books SET title = $1, publication_year = $2 WHERE id = $3", 
+                }
+                
+                string current_tags;
+                for (size_t i = 0; i < existing_tags.size(); ++i) {
+                    if (i > 0) current_tags += ", ";
+                    current_tags += existing_tags[i];
+                }
+                
+                cout << "Enter new title or empty line to use the current one (" << current_title << "):" << endl;
+                string new_title;
+                getline(cin, new_title);
+                new_title = trim(new_title);
+                if (new_title.empty()) new_title = current_title;
+                
+                cout << "Enter publication year or empty line to use the current one (" << current_year << "):" << endl;
+                string year_str;
+                getline(cin, year_str);
+                int new_year = current_year;
+                if (!year_str.empty()) new_year = stoi(year_str);
+                
+                cout << "Enter tags (current tags: " << (current_tags.empty() ? "none" : current_tags) << "):" << endl;
+                string tags_line;
+                getline(cin, tags_line);
+                
+                vector<string> new_tags;
+                if (tags_line.empty()) {
+                    new_tags = existing_tags;
+                } else {
+                    new_tags = parse_tags(tags_line);
+                }
+                
+                // Запись - отдельное соединение
+                {
+                    pqxx::connection conn_write(db_url);
+                    pqxx::work w(conn_write);
+                    w.exec_params("UPDATE books SET title = $1, publication_year = $2 WHERE id = $3",
                                   new_title, new_year, book_id);
                     w.exec_params("DELETE FROM book_tags WHERE book_id = $1", book_id);
                     for (const auto& tag : new_tags) {
@@ -240,17 +252,16 @@ int main() {
                         }
                     }
                     w.commit();
-                } catch (const exception& e) {
-                    cerr << "EditBook error: " << e.what() << endl;
-                    cout << "Book not found" << endl;
                 }
-                
+
             } else if (cmd == "AddBook") {
                 int year;
                 iss >> year;
-                string title = trim(line.substr(cmd.length() + to_string(year).length() + 1));
+                string remaining;
+                getline(iss, remaining);
+                string title = trim(remaining);
                 if (title.empty()) continue;
-                
+
                 // Проверка на дубликат
                 {
                     pqxx::connection conn(db_url);
@@ -260,13 +271,13 @@ int main() {
                         continue;
                     }
                 }
-                
+
                 cout << "Enter author name or empty line to select from list:" << endl;
                 string author_input;
                 getline(cin, author_input);
                 author_input = trim(author_input);
                 string author_id;
-                
+
                 if (!author_input.empty()) {
                     try {
                         pqxx::connection conn(db_url);
@@ -322,17 +333,17 @@ int main() {
                         continue;
                     }
                 }
-                
+
                 cout << "Enter tags (comma separated):" << endl;
                 string tags_line;
                 getline(cin, tags_line);
                 auto tags = parse_tags(tags_line);
-                
+
                 string book_id = generate_uuid();
                 try {
                     pqxx::connection conn(db_url);
                     pqxx::work w(conn);
-                    w.exec_params("INSERT INTO books (id, author_id, title, publication_year) VALUES ($1, $2, $3, $4)", 
+                    w.exec_params("INSERT INTO books (id, author_id, title, publication_year) VALUES ($1, $2, $3, $4)",
                                   book_id, author_id, title, year);
                     for (const auto& tag : tags) {
                         w.exec_params("INSERT INTO book_tags (book_id, tag) VALUES ($1, $2)", book_id, tag);
