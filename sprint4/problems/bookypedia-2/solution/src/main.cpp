@@ -88,7 +88,19 @@ int main() {
                 string name = trim(line.substr(cmd.length()));
                 if (name.empty()) {
                     cout << "Failed to add author" << endl;
+                    cout << flush;
                     continue;
+                }
+                // Проверяем, существует ли уже автор
+                {
+                    pqxx::connection conn_check(db_url);
+                    pqxx::nontransaction t(conn_check);
+                    auto check = t.exec_params("SELECT id FROM authors WHERE name = $1", name.c_str());
+                    if (!check.empty()) {
+                        cout << "Failed to add author" << endl;
+                        cout << flush;
+                        continue;
+                    }
                 }
                 try {
                     pqxx::connection conn(db_url);
@@ -99,6 +111,7 @@ int main() {
                     string err = e.what();
                     if (err.find("duplicate") == string::npos) {
                         cout << "Failed to add author" << endl;
+                    cout << flush;
                     }
                 }
 
