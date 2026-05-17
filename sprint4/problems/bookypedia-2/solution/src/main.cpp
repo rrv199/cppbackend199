@@ -55,6 +55,7 @@ int main() {
         w.exec("CREATE TABLE books (id uuid PRIMARY KEY, author_id uuid NOT NULL REFERENCES authors(id) ON DELETE CASCADE, title varchar(100) NOT NULL, publication_year integer NOT NULL);");
         w.exec("CREATE TABLE book_tags (book_id uuid NOT NULL REFERENCES books(id) ON DELETE CASCADE, tag varchar(30) NOT NULL, PRIMARY KEY (book_id, tag));");
         w.commit();
+                    usleep(100000);
                     system("sync");
     }
     
@@ -77,6 +78,7 @@ int main() {
                 pqxx::work w(conn);
                 w.exec_params("INSERT INTO authors (id, name) VALUES ($1, $2)", generate_uuid(), name);
                 w.commit();
+                    usleep(100000);
                     system("sync");
             } catch (...) {
                 cout << "Failed to add author" << endl;
@@ -84,7 +86,7 @@ int main() {
         }
         else if (cmd == "ShowAuthors") {
             pqxx::connection conn(db_url);
-            pqxx::read_transaction t(conn);
+            pqxx::nontransaction t(conn);
             auto res = t.exec("SELECT name FROM authors ORDER BY name");
             int i = 1;
             for (const auto& row : res) {
@@ -93,7 +95,7 @@ int main() {
         }
         else if (cmd == "ShowBooks") {
             pqxx::connection conn(db_url);
-            pqxx::read_transaction t(conn);
+            pqxx::nontransaction t(conn);
             auto res = t.exec("SELECT b.title, a.name, b.publication_year FROM books b JOIN authors a ON b.author_id = a.id ORDER BY b.title");
             int i = 1;
             for (const auto& row : res) {
@@ -114,7 +116,7 @@ int main() {
             string author_id;
             {
                 pqxx::connection conn(db_url);
-                pqxx::read_transaction t(conn);
+                pqxx::nontransaction t(conn);
                 auto res = t.exec_params("SELECT id FROM authors WHERE name = $1", author_name.c_str());
                 if (!res.empty()) {
                     author_id = res[0][0].as<string>();
@@ -130,6 +132,7 @@ int main() {
                     pqxx::work w(conn);
                     w.exec_params("INSERT INTO authors (id, name) VALUES ($1, $2)", author_id, author_name);
                     w.commit();
+                    usleep(100000);
                     system("sync");
                 }
             }
@@ -149,6 +152,7 @@ int main() {
                     w.exec_params("INSERT INTO book_tags (book_id, tag) VALUES ($1, $2)", book_id, tag);
                 }
                 w.commit();
+                    usleep(100000);
                     system("sync");
             } catch (const exception& e) {
                 cerr << "Error: " << e.what() << endl;
