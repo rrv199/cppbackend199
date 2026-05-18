@@ -640,3 +640,4 @@ void RequestHandler::operator()(StringRequest&& req, std::function<void(StringRe
 }
 
 } // namespace http_handler
+

@@ -10,3 +10,4 @@ namespace http_handler {
 }
 
 bool g_randomize_spawn_points = false;
+

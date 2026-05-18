@@ -30,3 +30,4 @@ public:
 private:
     ConnectionPool& pool_;
 };
+

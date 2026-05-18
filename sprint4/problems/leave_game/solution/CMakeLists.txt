@@ -1,23 +1,42 @@
 cmake_minimum_required(VERSION 3.14)
-project(leave_game CXX)
+project(game_server)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
-set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
 
-# Добавляем исполняемый файл
-add_executable(leave_game 
+add_compile_definitions(BOOST_BEAST_USE_STD_STRING_VIEW)
+add_compile_definitions(BOOST_JSON_HEADER_ONLY)
+
+# Conan setup
+if(EXISTS ${CMAKE_BINARY_DIR}/conanbuildinfo.cmake)
+    include(${CMAKE_BINARY_DIR}/conanbuildinfo.cmake)
+    conan_basic_setup()
+endif()
+
+find_package(Boost REQUIRED)
+
+set(SOURCES
     main.cpp
+    http_server.cpp
+    json_loader.cpp
+    request_handler.cpp
+    boost_json.cpp
 )
 
-# Линкуем библиотеки (системные)
-target_link_libraries(leave_game
-    pqxx
-    pq
-    pthread
-)
+add_executable(game_server ${SOURCES})
 
-# Добавляем директории для include
-target_include_directories(leave_game PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}
+target_include_directories(game_server PRIVATE .)
+target_link_libraries(game_server ${Boost_LIBRARIES} pthread)
+
+# Тесты
+add_executable(game_server_tests
+    tests/loot_generator_tests.cpp
+    loot_generator.cpp
 )
+target_include_directories(game_server_tests PRIVATE . external)
+target_compile_definitions(game_server_tests PRIVATE CATCH_CONFIG_MAIN)
+target_link_libraries(game_server_tests pthread)
+
+enable_testing()
+add_test(NAME LootGeneratorTests COMMAND game_server_tests)
+

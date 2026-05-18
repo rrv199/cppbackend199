@@ -126,3 +126,4 @@ model::Game LoadGame(const std::filesystem::path& json_path) {
 }
 
 } // namespace json_loader
+

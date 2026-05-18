@@ -51,3 +51,4 @@ private:
     std::vector<ConnectionPtr> pool_;
     size_t used_connections_ = 0;
 };
+
