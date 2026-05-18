@@ -6,3 +6,4 @@ struct LostObject {
     double x;
     double y;
 };
+

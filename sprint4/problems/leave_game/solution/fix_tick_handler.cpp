@@ -46,3 +46,4 @@ StringResponse HandleGameTick(const json::value& body, const model::Game& game) 
             11, true);
     }
 }
+

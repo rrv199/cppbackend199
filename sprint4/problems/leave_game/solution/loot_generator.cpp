@@ -79,3 +79,4 @@ std::vector<LostObject> LootGenerator::Generate(const model::Map& map,
 }
 
 } // namespace loot_gen
+

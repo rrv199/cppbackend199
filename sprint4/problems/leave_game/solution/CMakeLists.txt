@@ -39,3 +39,4 @@ target_link_libraries(game_server_tests pthread)
 
 enable_testing()
 add_test(NAME LootGeneratorTests COMMAND game_server_tests)
+

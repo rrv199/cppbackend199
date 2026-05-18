@@ -2,3 +2,4 @@
 namespace model {
 // Stub implementations if needed
 }
+

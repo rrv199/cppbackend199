@@ -63,3 +63,4 @@ private:
     Speed speed_;
     Direction dir_;
 };
+
